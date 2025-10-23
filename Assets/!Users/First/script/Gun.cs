@@ -104,26 +104,38 @@ public class Gun : MonoBehaviour
         Debug.DrawRay(playerCamera.transform.position, playerCamera.transform.forward * range, Color.red, 0.2f);
     }
 
-    // ฟังก์ชันใหม่สำหรับ Interact (เก็บกระสุน) <<< NEW
+// ในสคริปต์ Gun.cs
     void Interact()
     {
         Ray ray = new Ray(playerCamera.transform.position, playerCamera.transform.forward);
         RaycastHit hit;
         
-        // ใช้ Raycast ในระยะ InteractRange ที่กำหนดไว้
+        // Raycast ในระยะ InteractRange ที่กำหนดไว้
         if (Physics.Raycast(ray, out hit, interactRange, playerLayerMask))
         {
-            // ตรวจสอบว่าวัตถุที่ชนมีสคริปต์ AmmoPickup หรือไม่
-            AmmoPickup pickup = hit.collider.GetComponent<AmmoPickup>();
+            // 1. ตรวจสอบ Ammo Pickup
+            AmmoPickup ammoPickup = hit.collider.GetComponent<AmmoPickup>();
             
-            if (pickup != null)
+            if (ammoPickup != null)
             {
-                // ถ้าใช่, เรียกฟังก์ชัน Collect() ในสคริปต์ AmmoPickup และส่งตัวเอง (Gun) ไปให้
-                pickup.Collect(this); 
+                // ถ้าชนกล่องกระสุน: เก็บ
+                ammoPickup.Collect(this); 
+                return; // หยุดการทำงาน เพราะเก็บกระสุนแล้ว
             }
+            
+            // 2. ตรวจสอบ Door Controller
+            DoorController door = hit.collider.GetComponent<DoorController>();
+
+            if (door != null)
+            {
+                // ถ้าชนประตู: สั่งเปิด/ปิด
+                door.ToggleDoor();
+                return; // หยุดการทำงาน เพราะจัดการประตู้แล้ว
+            }
+            
+            // หากต้องการเพิ่มวัตถุที่ Interact ได้ในอนาคต ให้เพิ่มการตรวจสอบที่นี่
         }
     }
-
 
     IEnumerator Reload()
     {
