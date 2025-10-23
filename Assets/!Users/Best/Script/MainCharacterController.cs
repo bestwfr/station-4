@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using KinematicCharacterController;
 using System;
+using NaughtyAttributes;
+using UnityEngine.Serialization;
 
 namespace KinematicCharacterController
 {
@@ -47,11 +49,18 @@ namespace KinematicCharacterController
         public KinematicCharacterMotor Motor;
 
         [Header("Stable Movement")]
-        public float MaxStableMoveSpeed = 10f;
-        public float MaxStableSprintSpeed = 15f;
+        public float MaxStableMoveSpeed = 5f;
+        public float MaxStableSprintSpeed = 10f;
         public float StableMovementSharpness = 15f;
         public float OrientationSharpness = 10f;
         public OrientationMethod OrientationMethod = OrientationMethod.TowardsCamera;
+
+        [Header("Stamina & Tiredness")]
+        public float MaxStamina = 100f;
+        public float StaminaDrainRate = 20f; // Units drained per second while sprinting
+        public float StaminaRegenRate = 15f; // Units gained per second while not sprinting
+        public float TiredMovementSpeed = 3f; // Slower speed when stamina is zero
+        public float TiredMovementSharpness = 10f; // Separate sharpness for tired movement
 
         [Header("Air Movement")]
         public float MaxAirMoveSpeed = 15f;
@@ -76,7 +85,9 @@ namespace KinematicCharacterController
 
         public CharacterState CurrentCharacterState { get; private set; }
         
-        private float _currentMoveSpeed;
+        [SerializeField,ReadOnly] private float currentMoveSpeed;
+        [SerializeField,ReadOnly] private float currentMovementSharpness;
+        [SerializeField,ReadOnly] private float currentStamina;
 
         private Collider[] _probedColliders = new Collider[8];
         private RaycastHit[] _probedHits = new RaycastHit[8];
@@ -89,8 +100,10 @@ namespace KinematicCharacterController
         private float _timeSinceLastAbleToJump = 0f;
         private Vector3 _internalVelocityAdd = Vector3.zero;
         private bool _shouldBeCrouching = false;
-        private bool _isCrouching = false;
-        private bool _isSprinting = false;
+        
+        [field: SerializeField,ReadOnly] public bool IsCrouching { get; private set; }
+        [field: SerializeField,ReadOnly] public bool IsSprinting { get; private set; }
+        [field: SerializeField,ReadOnly] public bool IsTired { get; private set; }
 
         private Vector3 lastInnerNormal = Vector3.zero;
         private Vector3 lastOuterNormal = Vector3.zero;
@@ -103,7 +116,10 @@ namespace KinematicCharacterController
             // Assign the characterController to the motor
             Motor.CharacterController = this;
             
-            _currentMoveSpeed =  MaxStableMoveSpeed;
+            // Initialize speeds and stamina
+            currentMoveSpeed = MaxStableMoveSpeed;
+            currentMovementSharpness = StableMovementSharpness;
+            currentStamina = MaxStamina;
         }
 
         /// <summary>
@@ -190,9 +206,9 @@ namespace KinematicCharacterController
                         {
                             _shouldBeCrouching = true;
 
-                            if (!_isCrouching)
+                            if (!IsCrouching)
                             {
-                                _isCrouching = true;
+                                IsCrouching = true;
                                 Motor.SetCapsuleDimensions(0.5f, CrouchedCapsuleHeight, CrouchedCapsuleHeight * 0.5f);
                                 MeshRoot.localScale = new Vector3(1f, 0.5f, 1f);
                             }
@@ -202,22 +218,18 @@ namespace KinematicCharacterController
                             _shouldBeCrouching = false;
                         }
                         
-                        //Sprint input
+                        // Sprint input
                         if (inputs.SprintDown)
                         {
-                            if (!_isSprinting)
+                            // Only start sprinting if we are NOT exhausted
+                            if (!IsSprinting && !IsTired)
                             {
-                                _isSprinting = true;
-                                _currentMoveSpeed = MaxStableSprintSpeed;
+                                IsSprinting = true;
                             }
                         }
                         else if (inputs.SprintUp)
                         {
-                            if (_isSprinting)
-                            {
-                                _isSprinting = false;
-                                _currentMoveSpeed = MaxStableMoveSpeed;
-                            }
+                            IsSprinting = false;
                         }
 
                         break;
@@ -242,6 +254,39 @@ namespace KinematicCharacterController
         /// </summary>
         public void BeforeCharacterUpdate(float deltaTime)
         {
+            UpdateStamina(deltaTime);
+        }
+
+        /// <summary>
+        /// Handles the draining and regeneration of stamina
+        /// </summary>
+        private void UpdateStamina(float deltaTime)
+        {
+            if (IsSprinting)
+            {
+                // Drain stamina while sprinting
+                currentStamina -= StaminaDrainRate * deltaTime;
+                currentStamina = Mathf.Max(0f, currentStamina); // Clamp at 0
+
+                // If stamina hits zero, set the tired flag and stop sprinting
+                if (currentStamina <= 0f)
+                {
+                    IsTired = true;
+                    IsSprinting = false;
+                }
+            }
+            else if (currentStamina < MaxStamina)
+            {
+                // Regenerate stamina when not sprinting (and not crouched, if you want to add that)
+                currentStamina += StaminaRegenRate * deltaTime;
+                currentStamina = Mathf.Min(MaxStamina, currentStamina); // Clamp at max
+
+                // If stamina recovers above zero, remove the tired flag
+                if (IsTired && currentStamina > 35f) // Can sprint again once stamina is > 10 (or 0, your choice)
+                {
+                    IsTired = false;
+                }
+            }
         }
 
         /// <summary>
@@ -323,10 +368,10 @@ namespace KinematicCharacterController
                             // Calculate target velocity
                             Vector3 inputRight = Vector3.Cross(_moveInputVector, Motor.CharacterUp);
                             Vector3 reorientedInput = Vector3.Cross(effectiveGroundNormal, inputRight).normalized * _moveInputVector.magnitude;
-                            Vector3 targetMovementVelocity = reorientedInput * _currentMoveSpeed;
+                            Vector3 targetMovementVelocity = reorientedInput * currentMoveSpeed;
 
-                            // Smooth movement Velocity
-                            currentVelocity = Vector3.Lerp(currentVelocity, targetMovementVelocity, 1f - Mathf.Exp(-StableMovementSharpness * deltaTime));
+                            // Smooth movement Velocity using the dynamically set sharpness
+                            currentVelocity = Vector3.Lerp(currentVelocity, targetMovementVelocity, 1f - Mathf.Exp(-currentMovementSharpness * deltaTime));
                         }
                         // Air movement
                         else
@@ -381,7 +426,7 @@ namespace KinematicCharacterController
                         if (_jumpRequested)
                         {
                             // See if we actually are allowed to jump
-                            if (!_jumpConsumed && ((AllowJumpingWhenSliding ? Motor.GroundingStatus.FoundAnyGround : Motor.GroundingStatus.IsStableOnGround) || _timeSinceLastAbleToJump <= JumpPostGroundingGraceTime))
+                            if (!_jumpConsumed && !IsTired && ((AllowJumpingWhenSliding ? Motor.GroundingStatus.FoundAnyGround : Motor.GroundingStatus.IsStableOnGround) || _timeSinceLastAbleToJump <= JumpPostGroundingGraceTime))
                             {
                                 // Calculate jump direction before ungrounding
                                 Vector3 jumpDirection = Motor.CharacterUp;
@@ -449,7 +494,7 @@ namespace KinematicCharacterController
                         }
 
                         // Handle uncrouching
-                        if (_isCrouching && !_shouldBeCrouching)
+                        if (IsCrouching && !_shouldBeCrouching)
                         {
                             // Do an overlap test with the character's standing height to see if there are any obstructions
                             Motor.SetCapsuleDimensions(0.5f, 2f, 1f);
@@ -467,8 +512,27 @@ namespace KinematicCharacterController
                             {
                                 // If no obstructions, uncrouch
                                 MeshRoot.localScale = new Vector3(1f, 1f, 1f);
-                                _isCrouching = false;
+                                IsCrouching = false;
                             }
+                        }
+                        
+                        // Handle Sprinting & Stamina
+                        if (IsTired)
+                        {
+                            currentMoveSpeed = TiredMovementSpeed;
+                            currentMovementSharpness = TiredMovementSharpness;
+                            // Forced to stop sprinting if stamina runs out
+                            IsSprinting = false; 
+                        }
+                        else if (IsSprinting)
+                        {
+                            currentMoveSpeed = MaxStableSprintSpeed;
+                            currentMovementSharpness = StableMovementSharpness;
+                        }
+                        else
+                        {
+                            currentMoveSpeed = MaxStableMoveSpeed;
+                            currentMovementSharpness = StableMovementSharpness;
                         }
                         break;
                     }
