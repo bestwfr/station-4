@@ -6,7 +6,7 @@ namespace KinematicCharacterController
 {
     public class Player : MonoBehaviour
     {
-        public CharacterController Character;
+        public MainCharacterController Character;
         public CharacterCamera CharacterCamera;
 
         private const string MouseXInput = "Mouse X";
@@ -89,6 +89,8 @@ namespace KinematicCharacterController
             characterInputs.JumpDown = Input.GetKeyDown(KeyCode.Space);
             characterInputs.CrouchDown = Input.GetKeyDown(KeyCode.C);
             characterInputs.CrouchUp = Input.GetKeyUp(KeyCode.C);
+            characterInputs.SprintDown = Input.GetKeyDown(KeyCode.LeftShift);
+            characterInputs.SprintUp = Input.GetKeyUp(KeyCode.LeftShift);
 
             // Apply inputs to character
             Character.SetInputs(ref characterInputs);

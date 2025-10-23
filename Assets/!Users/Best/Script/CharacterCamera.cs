@@ -43,7 +43,12 @@ namespace KinematicCharacterController
         public float bobFrequency = 1.8f;
         public float bobAmplitude = 0.05f;
         public float bobSpeedReference = 6f;
-        private float _bobbingTimer = 0f;
+        public float lateralMultiplier = 0.6f;
+        public float swaySmooth = 8f;
+        
+        private float _currentLateral;
+        private float _bobbingTimer;
+        
 
         public Transform Transform { get; private set; }
         public Transform FollowTransform { get; private set; }
@@ -59,6 +64,9 @@ namespace KinematicCharacterController
         private RaycastHit[] _obstructions = new RaycastHit[MaxObstructions];
         private float _obstructionTime;
         private Vector3 _currentFollowPosition;
+        
+        private Vector3 _lastFollowPos;
+        private float _smoothedSpeed;
 
         private const int MaxObstructions = 32;
 
@@ -182,27 +190,37 @@ namespace KinematicCharacterController
                 Transform.position = targetPosition;
                 
 
-                // --- Bobbing ---
-                if (enableBobbing)
+                // // --- Realistic Head Bob & Sway ---
+                if (enableBobbing && FollowTransform != null)
                 {
-                    float speed = 0f;
+                    float speed = ((FollowTransform.position - _lastFollowPos) / deltaTime).magnitude;
+                    _lastFollowPos = FollowTransform.position;
+                    _smoothedSpeed = Mathf.Lerp(_smoothedSpeed, speed, deltaTime * 8f);
 
-                    // estimate movement speed from follow target
-                    if (FollowTransform != null)
-                        speed = (FollowTransform.position - _currentFollowPosition).magnitude / deltaTime;
-
-                    if (speed > 0.1f)
+                    if (_smoothedSpeed > 0.1f)
                     {
-                        _bobbingTimer += deltaTime * bobFrequency * Mathf.Clamp01(speed / bobSpeedReference);
+                        _bobbingTimer += deltaTime * bobFrequency * Mathf.Clamp01(_smoothedSpeed / bobSpeedReference);
+
+                        // Vertical bob — smooth bounce synced with steps
                         float verticalOffset = Mathf.Sin(_bobbingTimer * Mathf.PI * 2f) * bobAmplitude;
+
+                        // Lateral sway — slower and smoother, slightly offset
+                        float swayPhase = _bobbingTimer * Mathf.PI * 2f * 0.5f + Mathf.PI / 2f;
+                        float targetLateral = Mathf.Sin(swayPhase) * (bobAmplitude * lateralMultiplier);
+
+                        // Smoothly interpolate the sway instead of snapping
+                        _currentLateral = Mathf.Lerp(_currentLateral, targetLateral, deltaTime * swaySmooth);
+
+                        // Apply offsets
                         Transform.position += Transform.up * verticalOffset;
+                        Transform.position += Transform.right * _currentLateral;
                     }
                     else
                     {
                         _bobbingTimer = 0f;
+                        _currentLateral = Mathf.Lerp(_currentLateral, 0f, deltaTime * swaySmooth);
                     }
                 }
-
             }
         }
     }

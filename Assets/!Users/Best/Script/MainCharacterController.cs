@@ -25,6 +25,8 @@ namespace KinematicCharacterController
         public bool JumpDown;
         public bool CrouchDown;
         public bool CrouchUp;
+        public bool SprintDown;
+        public bool SprintUp;
     }
 
     public struct AICharacterInputs
@@ -40,12 +42,13 @@ namespace KinematicCharacterController
         TowardsGroundSlopeAndGravity,
     }
 
-    public class CharacterController : MonoBehaviour, ICharacterController
+    public class MainCharacterController : MonoBehaviour, ICharacterController
     {
         public KinematicCharacterMotor Motor;
 
         [Header("Stable Movement")]
         public float MaxStableMoveSpeed = 10f;
+        public float MaxStableSprintSpeed = 15f;
         public float StableMovementSharpness = 15f;
         public float OrientationSharpness = 10f;
         public OrientationMethod OrientationMethod = OrientationMethod.TowardsCamera;
@@ -72,6 +75,8 @@ namespace KinematicCharacterController
         public float CrouchedCapsuleHeight = 1f;
 
         public CharacterState CurrentCharacterState { get; private set; }
+        
+        private float _currentMoveSpeed;
 
         private Collider[] _probedColliders = new Collider[8];
         private RaycastHit[] _probedHits = new RaycastHit[8];
@@ -85,6 +90,7 @@ namespace KinematicCharacterController
         private Vector3 _internalVelocityAdd = Vector3.zero;
         private bool _shouldBeCrouching = false;
         private bool _isCrouching = false;
+        private bool _isSprinting = false;
 
         private Vector3 lastInnerNormal = Vector3.zero;
         private Vector3 lastOuterNormal = Vector3.zero;
@@ -96,6 +102,8 @@ namespace KinematicCharacterController
 
             // Assign the characterController to the motor
             Motor.CharacterController = this;
+            
+            _currentMoveSpeed =  MaxStableMoveSpeed;
         }
 
         /// <summary>
@@ -192,6 +200,24 @@ namespace KinematicCharacterController
                         else if (inputs.CrouchUp)
                         {
                             _shouldBeCrouching = false;
+                        }
+                        
+                        //Sprint input
+                        if (inputs.SprintDown)
+                        {
+                            if (!_isSprinting)
+                            {
+                                _isSprinting = true;
+                                _currentMoveSpeed = MaxStableSprintSpeed;
+                            }
+                        }
+                        else if (inputs.SprintUp)
+                        {
+                            if (_isSprinting)
+                            {
+                                _isSprinting = false;
+                                _currentMoveSpeed = MaxStableMoveSpeed;
+                            }
                         }
 
                         break;
@@ -297,7 +323,7 @@ namespace KinematicCharacterController
                             // Calculate target velocity
                             Vector3 inputRight = Vector3.Cross(_moveInputVector, Motor.CharacterUp);
                             Vector3 reorientedInput = Vector3.Cross(effectiveGroundNormal, inputRight).normalized * _moveInputVector.magnitude;
-                            Vector3 targetMovementVelocity = reorientedInput * MaxStableMoveSpeed;
+                            Vector3 targetMovementVelocity = reorientedInput * _currentMoveSpeed;
 
                             // Smooth movement Velocity
                             currentVelocity = Vector3.Lerp(currentVelocity, targetMovementVelocity, 1f - Mathf.Exp(-StableMovementSharpness * deltaTime));

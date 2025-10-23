@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
-using KinematicCharacterController.Examples;
+using KinematicCharacterController;
 
 namespace KinematicCharacterController.Examples
 {
@@ -10,7 +10,7 @@ namespace KinematicCharacterController.Examples
     {
         public Teleporter TeleportTo;
 
-        public UnityAction<ExampleCharacterController> OnCharacterTeleport;
+        public UnityAction<MainCharacterController> OnCharacterTeleport;
 
         public bool isBeingTeleportedTo { get; set; }
 
@@ -18,7 +18,7 @@ namespace KinematicCharacterController.Examples
         {
             if (!isBeingTeleportedTo)
             {
-                ExampleCharacterController cc = other.GetComponent<ExampleCharacterController>();
+                MainCharacterController cc = other.GetComponent<MainCharacterController>();
                 if (cc)
                 {
                     cc.Motor.SetPositionAndRotation(TeleportTo.transform.position, TeleportTo.transform.rotation);

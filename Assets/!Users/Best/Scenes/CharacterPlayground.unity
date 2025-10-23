@@ -12570,7 +12570,7 @@ MonoBehaviour:
   m_FallbackScreenDPI: 96
   m_DefaultSpriteDPI: 96
   m_DynamicPixelsPerUnit: 1
-  m_PresetInfoIsWorld: 0
+  m_PresetInfoIsWorld: 1
 --- !u!223 &568851972
 Canvas:
   m_ObjectHideFlags: 0
@@ -23258,8 +23258,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: be4bb1d229dba894ab645bd06dcb5325, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KinematicCharacterController.Player
-  Character: {fileID: 0}
-  CharacterCamera: {fileID: 0}
+  Character: {fileID: 6615662580611611647}
+  CharacterCamera: {fileID: 5573864683772550981}
 --- !u!1 &1016861084
 GameObject:
   m_ObjectHideFlags: 0
@@ -48891,11 +48891,14 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   ObstructionSharpness: 10000
-  IgnoredColliders: []
+  IgnoredColliders:
+  - {fileID: 6607685709280838954}
   enableBobbing: 1
-  bobFrequency: 1.8
-  bobAmplitude: 0.05
-  bobSpeedReference: 6
+  bobFrequency: 2
+  bobAmplitude: 0.07
+  bobSpeedReference: 10
+  lateralMultiplier: 0.6
+  swaySmooth: 8
 --- !u!23 &6486330055653890480
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -49312,16 +49315,17 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KinematicCharacterController.CharacterController
   Motor: {fileID: 6615662580611611646}
-  MaxStableMoveSpeed: 10
+  MaxStableMoveSpeed: 5
+  MaxStableSprintSpeed: 10
   StableMovementSharpness: 15
-  OrientationSharpness: 10
+  OrientationSharpness: 20
   OrientationMethod: 1
   MaxAirMoveSpeed: 10
   AirAccelerationSpeed: 30
   Drag: 0
   AllowJumpingWhenSliding: 0
   JumpUpSpeed: 10
-  JumpScalableForwardSpeed: 10
+  JumpScalableForwardSpeed: 2
   JumpPreGroundingGraceTime: 0.1
   JumpPostGroundingGraceTime: 0.1
   IgnoredColliders: []
