@@ -28,7 +28,7 @@ public class EquipmentManager : MonoBehaviour
 
     void Start()
     {
-        // บังคับปิดทั้งคู่ตอนเริ่มเกม (แก้ปัญหาเริ่มมาวิทยุติด)
+        // บังคับปิดทั้งคู่ตอนเริ่มเกม
         if (radio != null) radio.ForceRadioOff();
         if (flashlight != null) flashlight.ForceFlashlightOff();
         
@@ -56,8 +56,8 @@ public class EquipmentManager : MonoBehaviour
             }
         }
 
-        // --- 2. ปุ่ม "ใช้งาน" (คลิกซ้าย) ---
-        if (Input.GetButtonDown("Fire1")) 
+        // --- 2. ปุ่ม "ใช้งาน" (<<<<<--- แก้ตรงนี้!!! ---) ---
+        if (Input.GetKeyDown(KeyCode.V)) 
         {
             UseEquippedItem();
         }
@@ -72,7 +72,7 @@ public class EquipmentManager : MonoBehaviour
         if (newItem == EquippedItem.Radio)
         {
             // --- ถ้าสลับมาถือ "วิทยุ" ---
-            // 1. บังคับปิดไฟฉาย (และมันจะเล่นเสียงปิดเอง)
+            // 1. บังคับปิดไฟฉาย
             if (flashlight != null)
             {
                 flashlight.ForceFlashlightOff(); 
@@ -85,7 +85,7 @@ public class EquipmentManager : MonoBehaviour
         else if (newItem == EquippedItem.Flashlight)
         {
             // --- ถ้าสลับมาถือ "ไฟฉาย" ---
-            // 1. บังคับปิดวิทยุ (และมันจะเล่นเสียงปิดเอง)
+            // 1. บังคับปิดวิทยุ
             if (radio != null)
             {
                 radio.ForceRadioOff(); 
@@ -95,22 +95,18 @@ public class EquipmentManager : MonoBehaviour
             if (radioModel != null) radioModel.SetActive(false);
             if (flashlightModel != null) flashlightModel.SetActive(true);
         }
-        // (ถ้านายมีช่อง None (ไม่ถืออะไร) ก็เพิ่ม else if ตรงนี้ได้)
     }
 
-    // --- ฟังก์ชันตอน "คลิกซ้าย" ---
+    // --- ฟังก์ชันตอน "คลิกซ้าย" (ตอนนี้คือปุ่ม V) ---
     void UseEquippedItem()
     {
-        bool didItemTurnOn = false; // (ตัวแปรนี้ยังใช้ได้อยู่)
+        bool didItemTurnOn = false; 
 
         switch (currentItem)
         {
             case EquippedItem.Flashlight:
                 if (flashlight != null)
                 {
-                    // เรายังต้องเช็ก didItemTurnOn อยู่
-                    // เผื่อในอนาคตเราอยากให้ "เปิดไฟฉาย" แล้ว "ปิดวิทยุ"
-                    // (ถึงแม้ว่าตอนนี้ EquipItem จะชิงปิดไปแล้วก็ตาม)
                     didItemTurnOn = flashlight.ToggleFlashlight(); 
                     if (didItemTurnOn && radio != null)
                     {
