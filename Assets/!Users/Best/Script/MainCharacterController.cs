@@ -54,11 +54,16 @@ namespace KinematicCharacterController
         public float StableMovementSharpness = 15f;
         public float OrientationSharpness = 10f;
         public OrientationMethod OrientationMethod = OrientationMethod.TowardsCamera;
+        
+        [Header("Crouching Movement")]
+        public float MaxStableCrouchSpeed = 2f;
+        public float CrouchHeightTransitionSpeed = 15f;
 
         [Header("Stamina & Tiredness")]
         public float MaxStamina = 100f;
         public float StaminaDrainRate = 20f; // Units drained per second while sprinting
-        public float StaminaRegenRate = 15f; // Units gained per second while not sprinting
+        public float StaminaRegenRate = 25f; // Units gained per second while not sprinting
+        public float TiredStaminaRegenRate = 15f; 
         public float TiredMovementSpeed = 3f; // Slower speed when stamina is zero
         public float TiredMovementSharpness = 10f; // Separate sharpness for tired movement
 
@@ -88,6 +93,7 @@ namespace KinematicCharacterController
         [SerializeField,ReadOnly] private float currentMoveSpeed;
         [SerializeField,ReadOnly] private float currentMovementSharpness;
         [SerializeField,ReadOnly] private float currentStamina;
+        [SerializeField,ReadOnly] private float currentStaminaRegen;
 
         private Collider[] _probedColliders = new Collider[8];
         private RaycastHit[] _probedHits = new RaycastHit[8];
@@ -100,6 +106,10 @@ namespace KinematicCharacterController
         private float _timeSinceLastAbleToJump = 0f;
         private Vector3 _internalVelocityAdd = Vector3.zero;
         private bool _shouldBeCrouching = false;
+        
+        private float _targetCapsuleHeight;
+        private float _currentCapsuleHeight;
+        private float _standingCapsuleHeight;
         
         [field: SerializeField,ReadOnly] public bool IsCrouching { get; private set; }
         [field: SerializeField,ReadOnly] public bool IsSprinting { get; private set; }
@@ -120,6 +130,11 @@ namespace KinematicCharacterController
             currentMoveSpeed = MaxStableMoveSpeed;
             currentMovementSharpness = StableMovementSharpness;
             currentStamina = MaxStamina;
+            currentStaminaRegen = StaminaRegenRate;
+            
+            _standingCapsuleHeight = Motor.Capsule.height;
+            _currentCapsuleHeight = _standingCapsuleHeight;
+            _targetCapsuleHeight = _standingCapsuleHeight;
         }
 
         /// <summary>
@@ -205,24 +220,28 @@ namespace KinematicCharacterController
                         if (inputs.CrouchDown)
                         {
                             _shouldBeCrouching = true;
+                            IsSprinting = false;
+                            
+                            _targetCapsuleHeight = CrouchedCapsuleHeight;
 
                             if (!IsCrouching)
                             {
                                 IsCrouching = true;
-                                Motor.SetCapsuleDimensions(0.5f, CrouchedCapsuleHeight, CrouchedCapsuleHeight * 0.5f);
-                                MeshRoot.localScale = new Vector3(1f, 0.5f, 1f);
+                                MeshRoot.localScale = new Vector3(1f, CrouchedCapsuleHeight / _standingCapsuleHeight, 1f);
                             }
                         }
                         else if (inputs.CrouchUp)
                         {
                             _shouldBeCrouching = false;
+                            
+                            _targetCapsuleHeight = _standingCapsuleHeight;
                         }
                         
                         // Sprint input
                         if (inputs.SprintDown)
                         {
                             // Only start sprinting if we are NOT exhausted
-                            if (!IsSprinting && !IsTired)
+                            if (!IsSprinting && !IsTired && !IsCrouching)
                             {
                                 IsSprinting = true;
                             }
@@ -255,6 +274,7 @@ namespace KinematicCharacterController
         public void BeforeCharacterUpdate(float deltaTime)
         {
             UpdateStamina(deltaTime);
+            UpdateMovementSpeed();
         }
 
         /// <summary>
@@ -273,18 +293,20 @@ namespace KinematicCharacterController
                 {
                     IsTired = true;
                     IsSprinting = false;
+                    currentStaminaRegen = TiredStaminaRegenRate;
                 }
             }
             else if (currentStamina < MaxStamina)
             {
                 // Regenerate stamina when not sprinting (and not crouched, if you want to add that)
-                currentStamina += StaminaRegenRate * deltaTime;
+                currentStamina += currentStaminaRegen * deltaTime;
                 currentStamina = Mathf.Min(MaxStamina, currentStamina); // Clamp at max
 
                 // If stamina recovers above zero, remove the tired flag
-                if (IsTired && currentStamina > 35f) // Can sprint again once stamina is > 10 (or 0, your choice)
+                if (IsTired && currentStamina > 30f)
                 {
                     IsTired = false;
+                    currentStaminaRegen = StaminaRegenRate;
                 }
             }
         }
@@ -492,50 +514,88 @@ namespace KinematicCharacterController
                                 _timeSinceLastAbleToJump += deltaTime;
                             }
                         }
+                        
+                        // Smoothly move the current height toward the target height
+                        _currentCapsuleHeight = Mathf.Lerp(
+                            _currentCapsuleHeight, 
+                            _targetCapsuleHeight, 
+                            1f - Mathf.Exp(-CrouchHeightTransitionSpeed * deltaTime) // <-- Use the public field here
+                        );
+                        // Apply the new smooth height to the motor
+                        Motor.SetCapsuleDimensions(
+                            Motor.Capsule.radius, 
+                            _currentCapsuleHeight, 
+                            _currentCapsuleHeight * 0.5f // Half of the new height for the center Y
+                        );
 
                         // Handle uncrouching
                         if (IsCrouching && !_shouldBeCrouching)
                         {
-                            // Do an overlap test with the character's standing height to see if there are any obstructions
-                            Motor.SetCapsuleDimensions(0.5f, 2f, 1f);
+                            // Do an overlap test with the character's STANDING height to see if there are any obstructions
+                            // NOTE: We check the STANDING height (Motor.SetCapsuleDimensions temporarily sets the dimensions for the check)
+                            Motor.SetCapsuleDimensions(
+                                Motor.Capsule.radius, 
+                                _standingCapsuleHeight, 
+                                _standingCapsuleHeight * 0.5f
+                            );
+
                             if (Motor.CharacterOverlap(
-                                Motor.TransientPosition,
-                                Motor.TransientRotation,
-                                _probedColliders,
-                                Motor.CollidableLayers,
-                                QueryTriggerInteraction.Ignore) > 0)
+                                    Motor.TransientPosition,
+                                    Motor.TransientRotation,
+                                    _probedColliders,
+                                    Motor.CollidableLayers,
+                                    QueryTriggerInteraction.Ignore) > 0)
                             {
-                                // If obstructions, just stick to crouching dimensions
-                                Motor.SetCapsuleDimensions(0.5f, CrouchedCapsuleHeight, CrouchedCapsuleHeight * 0.5f);
+                                // If obstructions, revert dimensions back to the smooth current height and stick to crouching
+                                Motor.SetCapsuleDimensions(
+                                    Motor.Capsule.radius, 
+                                    _currentCapsuleHeight, 
+                                    _currentCapsuleHeight * 0.5f
+                                );
+                                // Ensure the target remains crouched until there's space
+                                _targetCapsuleHeight = CrouchedCapsuleHeight; 
                             }
                             else
                             {
-                                // If no obstructions, uncrouch
+                                // If no obstructions, we are clear to stand up fully
                                 MeshRoot.localScale = new Vector3(1f, 1f, 1f);
                                 IsCrouching = false;
+                                // The smoothing will automatically handle the transition since _targetCapsuleHeight is already _standingCapsuleHeight
                             }
                         }
-                        
-                        // Handle Sprinting & Stamina
-                        if (IsTired)
+                        // If we are not crouching AND we are moving to the standing height, make sure the mesh is standing
+                        else if (!IsCrouching && _targetCapsuleHeight > CrouchedCapsuleHeight * 1.01f)
                         {
-                            currentMoveSpeed = TiredMovementSpeed;
-                            currentMovementSharpness = TiredMovementSharpness;
-                            // Forced to stop sprinting if stamina runs out
-                            IsSprinting = false; 
+                            MeshRoot.localScale = new Vector3(1f, 1f, 1f);
                         }
-                        else if (IsSprinting)
-                        {
-                            currentMoveSpeed = MaxStableSprintSpeed;
-                            currentMovementSharpness = StableMovementSharpness;
-                        }
-                        else
-                        {
-                            currentMoveSpeed = MaxStableMoveSpeed;
-                            currentMovementSharpness = StableMovementSharpness;
-                        }
+
                         break;
                     }
+            }
+        }
+
+        private void UpdateMovementSpeed()
+        {
+            if (IsTired)
+            {
+                currentMoveSpeed = TiredMovementSpeed;
+                currentMovementSharpness = TiredMovementSharpness;
+                IsSprinting = false; 
+            }
+            else if (IsSprinting)
+            {
+                currentMoveSpeed = MaxStableSprintSpeed;
+                currentMovementSharpness = StableMovementSharpness;
+            }
+            else if (IsCrouching)
+            {
+                currentMoveSpeed = MaxStableCrouchSpeed;
+                currentMovementSharpness = StableMovementSharpness / 1.5f;
+            }
+            else
+            {
+                currentMoveSpeed = MaxStableMoveSpeed;
+                currentMovementSharpness = StableMovementSharpness;
             }
         }
 

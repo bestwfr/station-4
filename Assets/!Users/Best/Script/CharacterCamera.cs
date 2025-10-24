@@ -14,6 +14,10 @@ namespace KinematicCharacterController
         [Header("Framing")] public Camera Camera;
         public Vector2 FollowPointFraming = new Vector2(0f, 0f);
         public float FollowingSharpness = 10000f;
+        
+        [Header("Crouching")] 
+        public float CrouchVerticalOffset = -0.7f; // How much lower the camera should be
+        public float CrouchTransitionSpeed = 12f;  // Speed of the smooth transition
 
         [Header("Distance")] public float DefaultDistance = 6f;
         public float MinDistance = 0f;
@@ -46,12 +50,11 @@ namespace KinematicCharacterController
         public float TiredBobFrequency = 0.8f;
         public float TiredBobAmplitude = 0.1f;
         public float TiredExitSmoothing = 2.0f;
-
+        
         private float _currentLateral;
         private float _bobbingTimer;
         private float _currentBobFrequency;
         private float _currentBobAmplitude;
-        private float _currentJiggleAmplitude;
 
         public Transform Transform { get; private set; }
         public Transform FollowTransform { get; private set; }
@@ -70,6 +73,8 @@ namespace KinematicCharacterController
 
         private Vector3 _lastFollowPos;
         private float _smoothedSpeed;
+        
+        private float _targetVerticalOffset = 0f;
 
         private const int MaxObstructions = 32;
 
@@ -93,7 +98,20 @@ namespace KinematicCharacterController
             // Initialize bobbing parameters
             _currentBobFrequency = bobFrequency;
             _currentBobAmplitude = bobAmplitude;
-            _currentJiggleAmplitude = 0f;
+        }
+        
+        public void SetCrouchOffset(bool isCrouching)
+        {
+            if (isCrouching)
+            {
+                // Set the target offset to the crouching value
+                _targetVerticalOffset = CrouchVerticalOffset;
+            }
+            else
+            {
+                // Set the target offset back to zero (default)
+                _targetVerticalOffset = 0f;
+            }
         }
 
         // Set the transform that the camera will orbit around
@@ -197,17 +215,27 @@ namespace KinematicCharacterController
                     }
                 }
 
-                // Find the smoothed camera orbit position
-                Vector3 targetPosition =
-                    _currentFollowPosition - ((targetRotation * Vector3.forward) * _currentDistance);
+                // --- 1. Apply Smooth Vertical Offset (Crouching) ---
+                // Smoothly move the current framing Y value towards the target offset
+                FollowPointFraming.y = Mathf.Lerp(
+                    FollowPointFraming.y, 
+                    _targetVerticalOffset, 
+                    1f - Mathf.Exp(-CrouchTransitionSpeed * deltaTime)
+                );
 
-                // Handle framing
-                targetPosition += Transform.right * FollowPointFraming.x;
-                targetPosition += Transform.up * FollowPointFraming.y;
+                // Define the **Actual Pivot Point** where the camera should orbit.
+                // This combines the character's smoothed position with the vertical framing/crouch offset.
+                Vector3 orbitPivotPoint = _currentFollowPosition;
+                orbitPivotPoint += FollowTransform.up * FollowPointFraming.y; 
+                orbitPivotPoint += FollowTransform.right * FollowPointFraming.x; 
+                
+                // Find the smoothed camera orbit position.
+                // This now pulls the camera back from the correctly offset pivot point.
+                Vector3 targetPosition =
+                    orbitPivotPoint - ((targetRotation * Vector3.forward) * _currentDistance);
 
                 // Apply position
                 Transform.position = targetPosition;
-
 
                 // --- ENHANCED SMOOTH HEAD BOB & SWAY (No Jiggle) ---
                 if (enableBobbing && FollowTransform != null && CharacterController != null)

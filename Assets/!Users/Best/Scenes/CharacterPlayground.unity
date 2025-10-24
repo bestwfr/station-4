@@ -44520,6 +44520,55 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1992482337}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &1994683202
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1994683204}
+  - component: {fileID: 1994683203}
+  m_Layer: 0
+  m_Name: Vignette
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1994683203
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1994683202}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 172515602e62fb746b5d573b38a5fe58, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.RenderPipelines.Core.Runtime::UnityEngine.Rendering.Volume
+  m_IsGlobal: 1
+  priority: 0
+  blendDistance: 0
+  weight: 1
+  sharedProfile: {fileID: 11400000, guid: 4445969300d96ad4b8d1b1840ddf1f97, type: 2}
+--- !u!4 &1994683204
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1994683202}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0.17344482, y: 0.0011166482, z: -0.0001977272, w: 0.98484296}
+  m_LocalPosition: {x: 9.68445, y: -1.7081262, z: 0.064198315}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 5573864683772550979}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1994913975
 GameObject:
   m_ObjectHideFlags: 0
@@ -48766,7 +48815,7 @@ Camera:
   m_Depth: -1
   m_CullingMask:
     serializedVersion: 2
-    m_Bits: 4294967295
+    m_Bits: 63
   m_RenderingPath: -1
   m_TargetTexture: {fileID: 0}
   m_TargetDisplay: 0
@@ -48791,8 +48840,8 @@ GameObject:
   - component: {fileID: 5543738659990719153}
   - component: {fileID: 5509052267740542277}
   - component: {fileID: 5573864683772550981}
-  - component: {fileID: 5573864683772550980}
   - component: {fileID: 5573864683772550982}
+  - component: {fileID: 5573864683772550980}
   m_Layer: 0
   m_Name: Camera
   m_TagString: MainCamera
@@ -48812,7 +48861,8 @@ Transform:
   m_LocalPosition: {x: -48.4955, y: 3.611858, z: -29.188717}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 1994683204}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 19.976, y: -0.13, z: 0}
 --- !u!114 &5573864683772550980
@@ -48822,7 +48872,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5572022742420398803}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a79441f348de89743a2939f4d699eac1, type: 3}
   m_Name: 
@@ -48838,7 +48888,7 @@ MonoBehaviour:
     m_Bits: 1
   m_VolumeTrigger: {fileID: 0}
   m_VolumeFrameworkUpdateModeOption: 2
-  m_RenderPostProcessing: 0
+  m_RenderPostProcessing: 1
   m_Antialiasing: 0
   m_AntialiasingQuality: 2
   m_StopNaN: 0
@@ -48875,6 +48925,8 @@ MonoBehaviour:
   Camera: {fileID: 5553693056096936871}
   FollowPointFraming: {x: 0, y: 0}
   FollowingSharpness: 1e+9
+  CrouchVerticalOffset: -0.7
+  CrouchTransitionSpeed: 30
   DefaultDistance: 0
   MinDistance: 0
   MaxDistance: 0
@@ -48913,42 +48965,14 @@ MonoBehaviour:
   m_GameObject: {fileID: 5572022742420398803}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0ba1a5a7683fdbb4c88ffc81c72f525c, type: 3}
+  m_Script: {fileID: 11500000, guid: 43503886857344e08b5d4888602f5f51, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::KinematicCharacterController.CharacterCamera
-  CharacterController: {fileID: 6615662580611611647}
-  Camera: {fileID: 5553693056096936871}
-  FollowPointFraming: {x: 0, y: 0}
-  FollowingSharpness: 1e+9
-  DefaultDistance: 0
-  MinDistance: 0
-  MaxDistance: 0
-  DistanceMovementSpeed: 5
-  DistanceMovementSharpness: 10
-  InvertX: 0
-  InvertY: 0
-  DefaultVerticalAngle: 20
-  MinVerticalAngle: -90
-  MaxVerticalAngle: 90
-  RotationSpeed: 1.3
-  RotationSharpness: 10000
-  RotateWithPhysicsMover: 0
-  ObstructionCheckRadius: 0.2
-  ObstructionLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  ObstructionSharpness: 10000
-  IgnoredColliders:
-  - {fileID: 6607685709280838954}
-  enableBobbing: 1
-  bobFrequency: 2
-  bobAmplitude: 0.07
-  bobSpeedReference: 10
-  lateralMultiplier: 0.6
-  swaySmooth: 8
-  TiredBobFrequency: 0.8
-  TiredBobAmplitude: 0.1
-  TiredExitSmoothing: 1
+  m_EditorClassIdentifier: Assembly-CSharp::KinematicCharacterController.CameraVignetteEvent
+  characterController: {fileID: 6615662580611611647}
+  volume: {fileID: 1994683203}
+  defaultVignette: 0.12
+  tiredVignette: 0.35
+  transitionSpeed: 1.5
 --- !u!23 &6486330055653890480
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -49135,7 +49159,7 @@ GameObject:
   - component: {fileID: 6509974958177145226}
   - component: {fileID: 6494857619134773080}
   - component: {fileID: 6486330055653890480}
-  m_Layer: 3
+  m_Layer: 6
   m_Name: Cylinder
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -49200,7 +49224,7 @@ GameObject:
   - component: {fileID: 6505053525447303538}
   - component: {fileID: 6494253160521964946}
   - component: {fileID: 6486640052250702382}
-  m_Layer: 3
+  m_Layer: 6
   m_Name: Capsule
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -49369,18 +49393,21 @@ MonoBehaviour:
   MaxStableSprintSpeed: 10
   StableMovementSharpness: 15
   OrientationSharpness: 20
-  OrientationMethod: 1
-  MaxStamina: 40
+  OrientationMethod: 0
+  MaxStableCrouchSpeed: 2
+  CrouchHeightTransitionSpeed: 30
+  MaxStamina: 100
   StaminaDrainRate: 20
-  StaminaRegenRate: 15
+  StaminaRegenRate: 30
+  TiredStaminaRegenRate: 15
   TiredMovementSpeed: 3
   TiredMovementSharpness: 10
   MaxAirMoveSpeed: 10
   AirAccelerationSpeed: 30
   Drag: 0
-  AllowJumpingWhenSliding: 0
+  AllowJumpingWhenSliding: 1
   JumpUpSpeed: 7.5
-  JumpScalableForwardSpeed: 0.1
+  JumpScalableForwardSpeed: 0
   JumpPreGroundingGraceTime: 0.1
   JumpPostGroundingGraceTime: 0.1
   IgnoredColliders: []
@@ -49390,9 +49417,10 @@ MonoBehaviour:
   MeshRoot: {fileID: 6510422302040278518}
   CameraFollowPoint: {fileID: 6505238199867825826}
   CrouchedCapsuleHeight: 1
-  currentMoveSpeed: 0
-  currentMovementSharpness: 0
-  currentStamina: 0
+  currentMoveSpeed: 5
+  currentMovementSharpness: 15
+  currentStamina: 79.99977
+  currentStaminaRegen: 30
   <IsCrouching>k__BackingField: 0
   <IsSprinting>k__BackingField: 0
   <IsTired>k__BackingField: 0

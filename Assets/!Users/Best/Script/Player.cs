@@ -76,6 +76,8 @@ namespace KinematicCharacterController
             {
                 CharacterCamera.TargetDistance = (CharacterCamera.TargetDistance == 0f) ? CharacterCamera.DefaultDistance : 0f;
             }
+
+            CharacterCamera.SetCrouchOffset(Character.IsCrouching);
         }
 
         private void HandleCharacterInput()

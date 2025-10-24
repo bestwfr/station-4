@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System;
+using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
@@ -19,6 +20,7 @@ namespace PSX
             renderer.EnqueuePass(ditheringPass);
         }
         
+        [Obsolete("This rendering path is for compatibility mode only (when Render Graph is disabled). Use Render Graph API instead.", false)]
         public override void SetupRenderPasses(ScriptableRenderer renderer, in RenderingData renderingData)
         {
             ditheringPass.Setup(renderer.cameraColorTargetHandle);
@@ -55,6 +57,7 @@ namespace PSX
             this.ditheringMaterial = CoreUtils.CreateEngineMaterial(shader);
         }
     
+        [Obsolete("This rendering path is for compatibility mode only (when Render Graph is disabled). Use Render Graph API instead.", false)]
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
             if (this.ditheringMaterial == null)
