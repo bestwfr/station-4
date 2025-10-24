@@ -1,15 +1,14 @@
 using UnityEngine;
-using System.Collections; 
+using System.Collections; // <<< ต้องมีสำหรับ Coroutine
 
 public class Gun : MonoBehaviour
 {
     [Header("Gun Settings")]
     public float range = 100f;       // ระยะยิงสูงสุด
     public float damage = 10f;       // ความแรง
-    public float fireRate = 1f;      // จำนวนครั้งต่อวินาที
+    public float fireRate = 5f;      // จำนวนครั้งต่อวินาที
     private float nextFireTime = 0f;
     
-    // NEW: ระยะที่สามารถกด E เพื่อ Interact ได้
     [Header("Interaction Settings")]
     public float interactRange = 3f; 
 
@@ -24,6 +23,10 @@ public class Gun : MonoBehaviour
     public Transform muzzle;         // จุดปลายปืน
     public Camera playerCamera;      // กล้องมองจากมุมมองผู้เล่น
     public ParticleSystem muzzleFlash; // เอฟเฟกต์ยิง (optional)
+    
+    [Header("VFX & Tracer")]
+    // NEW: อ้างอิงถึง Tracer Prefab ที่มี Trail Renderer
+    public TrailRenderer bulletTracerPrefab; 
     public GameObject impactEffect;  // เอฟเฟกต์ตอนโดนเป้า (optional)
 
     private int playerLayerMask;
@@ -32,31 +35,25 @@ public class Gun : MonoBehaviour
     {
         currentAmmo = magazineCapacity;
         reserveAmmo = 0;
-        
-        // คำนวณ Layer Mask เพื่อละเว้น Layer "Player" จาก Raycast
         playerLayerMask = ~LayerMask.GetMask("Player");
     }
 
     void Update()
     {
-        // ถ้ากำลังรีโหลด ให้หยุดการทำงานทั้งหมด
         if (isReloading)
             return; 
 
-        // 1. ตรวจสอบการยิง
         if (Input.GetButton("Fire1") && Time.time >= nextFireTime && currentAmmo > 0)
         {
             nextFireTime = Time.time + 1f / fireRate;
             Shoot();
         }
         
-        // 2. ตรวจสอบการรีโหลด (กด R)
         if (Input.GetKeyDown(KeyCode.R) && currentAmmo < magazineCapacity && reserveAmmo > 0)
         {
             StartCoroutine(Reload()); 
         }
         
-        // 3. ตรวจสอบการ Interact (กด E) <<< NEW
         if (Input.GetKeyDown(KeyCode.E))
         {
             Interact();
@@ -65,7 +62,6 @@ public class Gun : MonoBehaviour
 
     void Shoot()
     {
-        // ลดกระสุนที่เหลือลง 1 นัด
         currentAmmo--; 
         Debug.Log("Ammo: " + currentAmmo + " / " + reserveAmmo);
 
@@ -83,57 +79,111 @@ public class Gun : MonoBehaviour
 
         Ray ray = new Ray(playerCamera.transform.position, playerCamera.transform.forward);
         RaycastHit hit;
+        
+        // ตัวแปรสำหรับ Coroutine
+        Vector3 hitPoint;
+        Vector3 hitNormal = Vector3.up;
+        bool didHit = false;
 
         // Raycast สำหรับการยิง
         if (Physics.Raycast(ray, out hit, range, playerLayerMask))
         {
-            Target target = hit.transform.GetComponent<Target>();
+            // Raycast ชน
+            hitPoint = hit.point;
+            hitNormal = hit.normal;
+            didHit = true;
+            Debug.Log("Hit: " + hit.collider.name);
             
+            // ตรวจสอบและสร้างความเสียหาย (ทำทันทีที่ชน)
+            Target target = hit.transform.GetComponent<Target>();
             if (target != null)
             {
                 target.TakeDamage(damage); 
             }
-
-            if (impactEffect != null)
-            {
-                GameObject impact = Instantiate(impactEffect, hit.point, Quaternion.LookRotation(hit.normal));
-                Destroy(impact, 2f); 
-            }
         }
+        else
+        {
+            // Raycast ไม่ชน: ให้ Tracer วิ่งไปจนสุดระยะ
+            hitPoint = ray.GetPoint(range);
+        }
+        
+        // ******************** NEW: สร้างและย้าย Tracer ********************
+        if (bulletTracerPrefab != null)
+        {
+            TrailRenderer tracer = Instantiate(
+                bulletTracerPrefab, 
+                muzzle.position, // เริ่มต้นที่ปลายกระบอกปืน
+                Quaternion.identity
+            );
+            
+            // ส่งข้อมูลการชนไปให้ Coroutine จัดการการเคลื่อนที่และการสร้าง Impact
+            StartCoroutine(SpawnTrail(tracer, hitPoint, hitNormal, didHit));
+        }
+        // *******************************************************************
 
         Debug.DrawRay(playerCamera.transform.position, playerCamera.transform.forward * range, Color.red, 0.2f);
+        
+        if (currentAmmo <= 0 && !isReloading)
+        {
+            // ไม่มีการสั่ง Reload อัตโนมัติ (Manual Reload)
+        }
     }
 
-// ในสคริปต์ Gun.cs
+    // NEW: Coroutine สำหรับเคลื่อนที่เส้นกระสุน
+    IEnumerator SpawnTrail(TrailRenderer trail, Vector3 hitPoint, Vector3 hitNormal, bool didHit)
+    {
+        // กำหนดให้ Tracer เคลื่อนที่ไปถึงจุดชนใน 0.1 วินาที (ปรับค่าได้)
+        float trailTime = 0.1f; 
+        float time = 0;
+        Vector3 startPosition = trail.transform.position;
+        
+        // เคลื่อนที่ด้วย Lerp
+        while (time < 1)
+        {
+            trail.transform.position = Vector3.Lerp(startPosition, hitPoint, time);
+            time += Time.deltaTime / trailTime;
+            yield return null; 
+        }
+        
+        // 1. ตรวจสอบให้แน่ใจว่า Tracer อยู่ที่จุดชนพอดี
+        trail.transform.position = hitPoint;
+        
+        // 2. สร้าง Impact Effect ที่จุดชน (ถ้ามีการชนจริง)
+        if (didHit && impactEffect != null)
+        {
+            GameObject impact = Instantiate(impactEffect, hitPoint, Quaternion.LookRotation(hitNormal));
+            Destroy(impact, 2f);
+        }
+        
+        // 3. ทำลาย Tracer's GameObject หลังจากที่ Trail Renderer หายไปตามเวลาที่ตั้งไว้ (trail.time)
+        Destroy(trail.gameObject, trail.time); 
+    }
+
+    // ... (ส่วน Interact, Reload, AddReserveAmmo) ...
+    // ... (ฟังก์ชันเหล่านี้ใช้โค้ดเดิมที่เคยทำไว้แล้ว) ...
+
     void Interact()
     {
         Ray ray = new Ray(playerCamera.transform.position, playerCamera.transform.forward);
         RaycastHit hit;
         
-        // Raycast ในระยะ InteractRange ที่กำหนดไว้
         if (Physics.Raycast(ray, out hit, interactRange, playerLayerMask))
         {
-            // 1. ตรวจสอบ Ammo Pickup
             AmmoPickup ammoPickup = hit.collider.GetComponent<AmmoPickup>();
             
             if (ammoPickup != null)
             {
-                // ถ้าชนกล่องกระสุน: เก็บ
                 ammoPickup.Collect(this); 
-                return; // หยุดการทำงาน เพราะเก็บกระสุนแล้ว
+                return;
             }
             
-            // 2. ตรวจสอบ Door Controller
             DoorController door = hit.collider.GetComponent<DoorController>();
 
             if (door != null)
             {
-                // ถ้าชนประตู: สั่งเปิด/ปิด
                 door.ToggleDoor();
-                return; // หยุดการทำงาน เพราะจัดการประตู้แล้ว
+                return;
             }
-            
-            // หากต้องการเพิ่มวัตถุที่ Interact ได้ในอนาคต ให้เพิ่มการตรวจสอบที่นี่
         }
     }
 
@@ -144,7 +194,6 @@ public class Gun : MonoBehaviour
 
         yield return new WaitForSeconds(reloadTime); 
 
-        // ตรรกะการรีโหลด: ดึงกระสุนจากสำรอง (reserveAmmo)
         int ammoNeeded = magazineCapacity - currentAmmo;
         int ammoToUse = Mathf.Min(ammoNeeded, reserveAmmo); 
         
@@ -155,7 +204,6 @@ public class Gun : MonoBehaviour
         Debug.Log("Reload Complete. Ammo: " + currentAmmo + " / " + reserveAmmo);
     }
     
-    // ฟังก์ชันสำหรับเพิ่มกระสุนสำรอง (สำหรับใช้ใน AmmoPickup)
     public void AddReserveAmmo(int amount)
     {
         reserveAmmo += amount;

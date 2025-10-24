@@ -1001,7 +1001,7 @@ Transform:
   m_GameObject: {fileID: 810248833}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0.7071068, z: 0, w: 0.70710677}
-  m_LocalPosition: {x: -6.82, y: 0.08, z: -17.25}
+  m_LocalPosition: {x: -2.49, y: 0.08, z: -11.63}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1197,7 +1197,7 @@ Transform:
   m_GameObject: {fileID: 1082718908}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 20.004, y: 0.075, z: -47.581}
+  m_LocalPosition: {x: 20.163, y: -0.238, z: -48.46}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1436,7 +1436,7 @@ Transform:
   m_GameObject: {fileID: 1162799964}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0.7071068, z: 0, w: 0.7071068}
-  m_LocalPosition: {x: -6.88, y: 2.43, z: -17.16}
+  m_LocalPosition: {x: -2.5500002, y: 2.43, z: -11.54}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1498,6 +1498,7 @@ MonoBehaviour:
   muzzle: {fileID: 1082718909}
   playerCamera: {fileID: 1162799966}
   muzzleFlash: {fileID: 1452357434}
+  bulletTracerPrefab: {fileID: 2141382865288920928, guid: 68c37cab2c840294fb757db70f0c96a5, type: 3}
   impactEffect: {fileID: 5238538877814813142, guid: 47096eff328e11a418ace7db2d72aa97, type: 3}
 --- !u!1 &1277104232
 GameObject:
@@ -1749,8 +1750,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1452357431}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.117976435, y: -0.69715023, z: 0.118512675, w: 0.6971499}
-  m_LocalPosition: {x: 0.605, y: -0.351, z: -0.641}
+  m_LocalRotation: {x: 0.11797645, y: -0.69715035, z: 0.11851267, w: 0.6971498}
+  m_LocalPosition: {x: 0.4860096, y: -0.0939993, z: 0.28599167}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
