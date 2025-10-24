@@ -13,132 +13,131 @@ public class FlashlightController : MonoBehaviour
     public float highBeamIntensity = 8.0f;
     public float highBeamSpotAngle = 15.0f;
 
-    // --- ของใหม่ที่เพิ่มเข้ามา ---
     [Header("Battery System")]
-    public float maxBattery = 100.0f; // แบตเตอรี่เต็ม (หน่วยเป็น วินาที หรือแล้วแต่เราจะเทียบ)
-    public float currentBattery; // แบตเตอรี่ปัจจุบัน
-    
-    [Tooltip("แบตจะลดเท่าไหร่ 'ต่อวินาที' ในโหมดปกติ")]
-    public float normalDrainRate = 0.5f; // ใช้แบตน้อย (ปรับได้)
+    public float maxBattery = 100.0f;
+    public float currentBattery;
+    public float normalDrainRate = 0.5f;
+    public float highBeamDrainRate = 2.0f;
 
-    [Tooltip("แบตจะลดเท่าไหร่ 'ต่อวินาที' ในโหมดส่องจ้า")]
-    public float highBeamDrainRate = 2.0f; // ใช้แบตเยอะ (ปรับได้)
+    [Header("Audio Settings")]
+    public AudioClip soundFlashlightOn;
+    public AudioClip soundFlashlightOff;
+    public AudioClip soundBatteryDead;
     
-    // (เดี๋ยวเราจะทำ UI มาแสดงค่า currentBattery ทีหลัง)
-    // --- จบของใหม่ ---
-
+    private AudioSource audioSource;
 
     void Start()
     {
-        // สั่งให้ไฟฉายปิดตอนเริ่มเกม
         if (flashlight != null)
         {
             flashlight.enabled = false;
             isFlashlightOn = false;
-            
             flashlight.intensity = normalIntensity;
             flashlight.spotAngle = normalSpotAngle;
         }
-
-        // --- ของใหม่ ---
-        // ตั้งค่าแบตเตอรี่ให้เต็มตอนเริ่มเกม
         currentBattery = maxBattery;
-        // --- จบของใหม่ ---
+        
+        // (ใช้ GetComponent เพราะสคริปต์นี้อยู่บน Player ที่มี AudioSource)
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null)
+        {
+            Debug.LogError("FlashlightController: หา AudioSource ไม่เจอ! อย่าลืมแปะไว้ที่ Player นะ");
+        }
     }
 
     void Update()
     {
-        // --- 1. เช็กการกดปุ่มเปิด/ปิด (LMB) ---
-        if (Input.GetButtonDown("Fire1"))
-        {
-            ToggleFlashlight();
-        }
+        // (ลบ Input.GetButtonDown("Fire1") ออกไปแล้ว... ถูกต้อง)
 
-
-        // --- 2. อัปเดตการทำงานของไฟฉาย (ถ้ามันเปิดอยู่) ---
         if (isFlashlightOn)
         {
-            // --- 2a. เช็กว่าแบตหมดหรือยัง ---
             if (currentBattery <= 0)
             {
-                // ถ้าแบตหมด = บังคับปิดไฟทันที
-                currentBattery = 0; // ไม่ให้ติดลบ
+                currentBattery = 0;
                 isFlashlightOn = false;
                 flashlight.enabled = false;
-                Debug.Log("แบตหมด!! (Battery Dead!)"); // แจ้งเตือนใน Console
-                return; // จบการทำงานในเฟรมนี้ ไม่ต้องทำต่อ
+                PlaySound(soundFlashlightOff);
+                Debug.Log("แบตไฟฉายหมด!! (Battery Dead!)");
+                return;
             }
-
-            // --- 2b. ถ้าแบตยังไม่หมด: ทำงานตามโหมด ---
             
-            // เช็กว่ากำลัง "กดคลิกขวาค้าง" (Fire2) มั้ย?
-            if (Input.GetButton("Fire2"))
+            // (ยังเช็กปุ่ม "Fire2" (คลิกขวา) สำหรับ High Beam ได้)
+            if (Input.GetButton("Fire2")) 
             {
-                // โหมด High Beam
                 flashlight.intensity = highBeamIntensity;
                 flashlight.spotAngle = highBeamSpotAngle;
-                
-                // ลดแบตแบบ High Beam
-                // (คูณ Time.deltaTime เพื่อให้มันลด "ต่อวินาที" ไม่ใช่ "ต่อเฟรม")
                 currentBattery -= highBeamDrainRate * Time.deltaTime;
             }
             else
             {
-                // โหมดปกติ
                 flashlight.intensity = normalIntensity;
                 flashlight.spotAngle = normalSpotAngle;
-
-                // ลดแบตแบบปกติ
                 currentBattery -= normalDrainRate * Time.deltaTime;
             }
-
-            // --- (Optional) ไว้เช็กค่าแบตใน Console ---
-            // Debug.Log("Battery: " + currentBattery);
         }
     }
 
-    // ฟังก์ชันสำหรับเปิด/ปิดไฟฉาย
-    void ToggleFlashlight()
+    // --- ฟังก์ชันสำหรับให้ EquipmentManager เรียก (คืนค่า bool) ---
+    public bool ToggleFlashlight()
     {
-        if (flashlight == null) return;
+        if (flashlight == null) return false;
 
-        // สลับค่า true/false
         isFlashlightOn = !isFlashlightOn;
 
-        // --- ลอจิกใหม่: เช็กแบตก่อนเปิด ---
-        if (isFlashlightOn) // ถ้าสถานะคือ "กำลังจะเปิด"
+        if (isFlashlightOn) // "กำลังจะเปิด"
         {
             if (currentBattery > 0)
             {
-                // แบตยังเหลือ -> เปิดได้
                 flashlight.enabled = true;
-                // ตั้งค่าเริ่มต้นเป็นโหมดปกติ
                 flashlight.intensity = normalIntensity;
                 flashlight.spotAngle = normalSpotAngle;
+                PlaySound(soundFlashlightOn);
+                return true; // <-- "ส่งคำตอบกลับ" ว่าเพิ่งเปิด
             }
             else
             {
-                // แบตหมด -> เปิดไม่ได้
-                isFlashlightOn = false; // สลับกลับไปเป็น false
+                isFlashlightOn = false; 
                 flashlight.enabled = false;
-                Debug.Log("คลิกเปิด... แต่แบตหมด!");
+                PlaySound(soundBatteryDead);
+                return false; // <-- "ส่งคำตอบกลับ" ว่าเปิดไม่ติด
             }
         }
-        else
+        else // "กำลังจะปิด"
         {
-            // ถ้าสถานะคือ "กำลังจะปิด" -> ปิดได้เลย
             flashlight.enabled = false;
+            PlaySound(soundFlashlightOff);
+            return false; // <-- "ส่งคำตอบกลับ" ว่าเพิ่งปิด
         }
     }
 
-    // --- (โบนัส) ฟังก์ชันสำหรับให้ไอเทมอื่นมา "เติมแบต" ---
+    // --- ฟังก์ชันสำหรับ "บังคับปิด" (สั่งจากข้างนอก) ---
+    public void ForceFlashlightOff()
+    {
+        if (isFlashlightOn) // <<<--- เช็กก่อนว่ามันเปิดอยู่มั้ย
+        {
+            isFlashlightOn = false;
+            flashlight.enabled = false;
+            PlaySound(soundFlashlightOff);
+        }
+    }
+
+    // --- ฟังก์ชันเล่นเสียง ---
+    void PlaySound(AudioClip clip)
+    {
+        if (audioSource != null && clip != null)
+        {
+            audioSource.PlayOneShot(clip);
+        }
+    }
+
+    // --- ฟังก์ชันเติมแบต ---
     public void AddBattery(float amount)
     {
         currentBattery += amount;
         if (currentBattery > maxBattery)
         {
-            currentBattery = maxBattery; // ไม่ให้เกินค่า Max
+            currentBattery = maxBattery;
         }
-        Debug.Log("เติมแบตแล้ว! ปัจจุบัน: " + currentBattery);
+        Debug.Log($"เติมแบตไฟฉายแล้ว! ปัจจุบัน: {currentBattery}");
     }
 }

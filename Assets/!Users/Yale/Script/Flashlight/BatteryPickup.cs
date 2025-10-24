@@ -2,51 +2,90 @@ using UnityEngine;
 
 public class BatteryPickup : MonoBehaviour
 {
+    public enum DeviceType 
+    { 
+        Flashlight, 
+        Radio       
+    }
+
     [Header("Item Settings")]
-    [Tooltip("จำนวนแบตเตอรี่ที่จะเติมให้ (เช่น 25, 50)")]
+    [Tooltip("ถ่านนี้สำหรับอุปกรณ์ไหน?")]
+    public DeviceType forDevice;
+
+    [Tooltip("จำนวนแบตเตอรี่ที่จะเติมให้")]
     public float batteryAmount = 25.0f;
 
-    [Tooltip("ความเร็วในการหมุน (0 = ไม่หมุน)")]
+    [Tooltip("ความเร็วในการหมุน")]
     public float rotationSpeed = 50.0f;
 
     
     void Update()
     {
-        // (โบนัส) ทำให้ไอเทมหมุนๆ จะได้ดูเด่น
         if (rotationSpeed > 0)
         {
             transform.Rotate(Vector3.up, rotationSpeed * Time.deltaTime, Space.World);
         }
     }
 
-    // --- นี่คือหัวใจสำคัญ! ---
-    // ฟังก์ชันนี้จะทำงาน "อัตโนมัติ" เมื่อมี Collider อื่น
-    // ที่ "Is Trigger = false" (เช่น Player) วิ่งเข้ามาชน
     private void OnTriggerEnter(Collider other)
     {
-        // "other" คือสิ่งที่วิ่งมาชนเรา
-
-        // 1. เช็กก่อนว่า "Player" วิ่งมาชน (ไม่ใช่ผี หรือกระสุน)
-        // เราจะเช็กโดยใช้ Tag
+        // 1. เช็กว่า Player วิ่งมาชน
         if (other.CompareTag("Player"))
         {
-            Debug.Log("Player สัมผัสแบตเตอรี่!");
-
-            // 2. ถ้าใช่ Player... ให้ลองค้นหาสคริปต์ FlashlightController บนตัว Player
-            FlashlightController flashlight = other.GetComponentInParent<FlashlightController>();
-
-            // 3. เช็กว่า Player คนนั้นมีสคริปต์ไฟฉายมั้ย
-            if (flashlight != null)
+            switch (forDevice)
             {
-                // 4. ถ้ามี... สั่งให้มันเติมแบต!
-                flashlight.AddBattery(batteryAmount);
+                // ---- 1. ถ้าเป็น "ถ่านไฟฉาย" ----
+                case DeviceType.Flashlight:
+                    
+                    // --- แก้ตรงนี้! ---
+                    // ใช้ GetComponentInParent เพื่อหา "พ่อ" (Player) ที่มีสคริปต์ไฟฉาย
+                    FlashlightController flashlight = other.GetComponentInParent<FlashlightController>();
+                    
+                    if (flashlight != null)
+                    {
+                        // --- เพิ่มเช็กตรงนี้! ---
+                        // เช็กก่อนว่าแบตเต็มรึยัง
+                        if (flashlight.currentBattery < flashlight.maxBattery)
+                        {
+                            flashlight.AddBattery(batteryAmount);
+                            Debug.Log("เติมแบตไฟฉายแล้ว!");
+                            Destroy(gameObject); // ค่อยทำลายทิ้ง
+                        }
+                        else
+                        {
+                            Debug.Log("แบตไฟฉายเต็มแล้ว! เก็บไม่ได้!");
+                        }
+                    }
+                    else
+                    {
+                        Debug.LogWarning("Player คนนี้ไม่มีสคริปต์ FlashlightController!");
+                    }
+                    break;
 
-                // 5. ทำลายตัวเองทิ้ง (เพราะเก็บไปแล้ว)
-                Destroy(gameObject);
-            }
-            else
-            {
-                Debug.LogWarning("Player คนนี้ไม่มีสคริปต์ FlashlightController!");
+                // ---- 2. ถ้าเป็น "ถ่านวิทยุ" ----
+                case DeviceType.Radio:
+                    // (อันนี้ใช้ GetComponent ถูกแล้ว เพราะสคริปต์อยู่บน Character)
+                    RadioTracker radio = other.GetComponent<RadioTracker>();
+                    if (radio != null)
+                    {
+                        // --- เพิ่มเช็กตรงนี้! ---
+                        // เช็กก่อนว่าแบตเต็มรึยัง
+                        if (radio.currentBattery < radio.maxBattery)
+                        {
+                            radio.AddBattery(batteryAmount);
+                            Debug.Log("เติมแบตวิทยุแล้ว!");
+                            Destroy(gameObject); // ค่อยทำลายทิ้ง
+                        }
+                        else
+                        {
+                            Debug.Log("แบตวิทยุเต็มแล้ว! เก็บไม่ได้!");
+                        }
+                    }
+                    else
+                    {
+                        Debug.LogWarning("Player คนนี้ไม่มีสคริปต์ RadioTracker!");
+                    }
+                    break;
             }
         }
     }
