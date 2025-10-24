@@ -8,6 +8,7 @@ public class Gun : MonoBehaviour
     public AudioSource audioSource;
     public AudioClip shootSound;
     public AudioClip reloadSound;
+    public AudioClip cockingSound; // เสียงชักกระสุนหลังยิง
     
     // ... (โค้ด Gun Settings, Ammo Settings, References, VFX & Tracer เดิม) ...
     [Header("Gun Settings")]
@@ -35,13 +36,17 @@ public class Gun : MonoBehaviour
     public TrailRenderer bulletTracerPrefab;
     public GameObject impactEffect;
 
+    // 🚨 NEW: อ้างอิง GameObject ที่มี Animator (คือ Gunmo/Gunmodel)
+    [Header("Animation")]
+    public GameObject animatedGunObject; 
+    private Animator gunAnimator; // ตัวแปรส่วนตัวสำหรับเก็บ Animator Component
+    
     private int playerLayerMask;
 
     void Start()
     {
         currentAmmo = magazineCapacity;
         reserveAmmo = 0;
-        // LayerMask ที่ไม่รวม Layer "Player" เพื่อไม่ให้ Raycast ชนตัวผู้เล่นเอง
         playerLayerMask = ~LayerMask.GetMask("Player");
         
         if (audioSource == null)
@@ -52,6 +57,16 @@ public class Gun : MonoBehaviour
                 audioSource = gameObject.AddComponent<AudioSource>();
             }
         }
+        
+        // 🚨 NEW: ดึง Animator Component จาก GameObject ที่ลากมาใส่ (Gunmo)
+        if (animatedGunObject != null)
+        {
+            gunAnimator = animatedGunObject.GetComponent<Animator>();
+            if (gunAnimator == null)
+            {
+                Debug.LogError("Gun.cs: Animator component not found on the assigned Animated Gun Object!");
+            }
+        }
     }
 
     void Update()
@@ -59,7 +74,7 @@ public class Gun : MonoBehaviour
         if (isReloading)
             return;
 
-        // Input ยิง (Fire1 คือปุ่มซ้ายของเมาส์โดยค่าเริ่มต้น)
+        // Input ยิง 
         if (Input.GetButton("Fire1") && Time.time >= nextFireTime && currentAmmo > 0)
         {
             nextFireTime = Time.time + 1f / fireRate;
@@ -72,7 +87,7 @@ public class Gun : MonoBehaviour
             StartCoroutine(Reload());
         }
         
-        // 🚨 Input สำหรับการโต้ตอบ (กด E)
+        // Input สำหรับการโต้ตอบ (กด E)
         if (Input.GetKeyDown(KeyCode.E))
         {
             Interact();
@@ -81,20 +96,32 @@ public class Gun : MonoBehaviour
 
     void Shoot()
     {
-        // ... (โค้ด Shoot, Raycast, VFX, Tracer เดิม) ...
         if (currentAmmo <= 0) 
         {
             return; 
         }
 
         currentAmmo--;
-        Debug.Log("Ammo: " + currentAmmo + " / " + reserveAmmo);
-
+        
+        // 🚨 NEW: เรียก Animator Trigger เพื่อเริ่ม Animation Recoil
+        if (gunAnimator != null)
+        {
+            gunAnimator.SetTrigger("Shoot"); // "Shoot" ต้องเป็นชื่อ Trigger ที่คุณตั้งใน Animator
+        }
+        
+        // 1. เล่นเสียงยิงหลัก
         if (audioSource != null && shootSound != null)
         {
             audioSource.PlayOneShot(shootSound);
         }
+        
+        // 2. สั่งเล่นเสียงชักกระสุน
+        if (cockingSound != null)
+        {
+            StartCoroutine(PlayCockingSoundDelayed(0.15f)); 
+        }
 
+        // Muzzle Flash
         if (muzzleFlash != null)
         {
             if (!muzzleFlash.gameObject.activeSelf)
@@ -106,6 +133,7 @@ public class Gun : MonoBehaviour
             muzzleFlash.Play();
         }
 
+        // Raycast and Tracer (เดิม)
         Ray ray = new Ray(playerCamera.transform.position, playerCamera.transform.forward);
         RaycastHit hit;
         
@@ -141,6 +169,19 @@ public class Gun : MonoBehaviour
             StartCoroutine(SpawnTrail(tracer, hitPoint, hitNormal, didHit));
         }
     }
+    
+    IEnumerator PlayCockingSoundDelayed(float delayTime)
+    {
+        yield return new WaitForSeconds(delayTime);
+        
+        if (audioSource != null && cockingSound != null)
+        {
+            if (!isReloading)
+            {
+                audioSource.PlayOneShot(cockingSound);
+            }
+        }
+    }
 
     IEnumerator SpawnTrail(TrailRenderer trail, Vector3 hitPoint, Vector3 hitNormal, bool didHit)
     {
@@ -166,45 +207,41 @@ public class Gun : MonoBehaviour
         Destroy(trail.gameObject, trail.time);
     }
 
-// ในสคริปต์ Gun.cs (ส่วน Interact)
-
-void Interact()
-{
-    Ray ray = new Ray(playerCamera.transform.position, playerCamera.transform.forward);
-    RaycastHit hit;
-    
-    if (Physics.Raycast(ray, out hit, interactRange, playerLayerMask))
+    void Interact()
     {
-        // 1. ตรวจสอบ Dialogue Trigger (สำหรับ Dialog ปกติ - ยังคงอยู่)
-        DialogueTrigger dialogTrigger = hit.collider.GetComponent<DialogueTrigger>();
-        if (dialogTrigger != null)
+        Ray ray = new Ray(playerCamera.transform.position, playerCamera.transform.forward);
+        RaycastHit hit;
+        
+        if (Physics.Raycast(ray, out hit, interactRange, playerLayerMask))
         {
-            if (dialogTrigger.TryInteract()) 
+            // 1. ตรวจสอบ Dialogue Trigger (สำหรับ Dialog ปกติ)
+            DialogueTrigger dialogTrigger = hit.collider.GetComponent<DialogueTrigger>();
+            if (dialogTrigger != null)
             {
-                return; 
+                if (dialogTrigger.TryInteract()) 
+                {
+                    return; 
+                }
+            }
+            
+            // 2. ตรวจสอบ AmmoPickup (สำหรับเก็บกระสุน)
+            AmmoPickup ammoPickup = hit.collider.GetComponent<AmmoPickup>();
+            if (ammoPickup != null)
+            {
+                ammoPickup.Collect(this); 
+                return;
+            }
+            
+            // 3. ตรวจสอบ DoorController
+            DoorController door = hit.collider.GetComponent<DoorController>();
+            if (door != null)
+            {
+                door.ToggleDoor();
+                return;
             }
         }
-        
-        // 🚨 2. ตรวจสอบ AmmoPickup (เรียก Collect() ตรงๆ)
-        AmmoPickup ammoPickup = hit.collider.GetComponent<AmmoPickup>();
-        if (ammoPickup != null)
-        {
-            // เรียก Collect() ตรงๆ โดยไม่ต้องผ่าน TryInteract()
-            ammoPickup.Collect(this); 
-            return;
-        }
-        
-        // 3. ตรวจสอบ DoorController
-        DoorController door = hit.collider.GetComponent<DoorController>();
-        if (door != null)
-        {
-            door.ToggleDoor();
-            return;
-        }
     }
-}
 
-// ... (โค้ดส่วนอื่น ๆ ของ Gun.cs) ...
     IEnumerator Reload()
     {
         isReloading = true;
