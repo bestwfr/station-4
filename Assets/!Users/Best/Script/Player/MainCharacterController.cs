@@ -47,7 +47,7 @@ namespace KinematicCharacterController
     public class MainCharacterController : MonoBehaviour, ICharacterController
     {
         public KinematicCharacterMotor Motor;
-        public CharacterCamera camera;
+        [FormerlySerializedAs("camera")] public CharacterCamera characterCamera;
 
         [Header("Stable Movement")]
         public float MaxStableMoveSpeed = 5f;
@@ -473,9 +473,9 @@ namespace KinematicCharacterController
                                 _jumpConsumed = true;
                                 _jumpedThisFrame = true;
                                 
-                                if (camera != null)
+                                if (characterCamera != null)
                                 {
-                                    camera.OnCharacterJump();
+                                    characterCamera.OnCharacterJump();
                                 }
                             }
                         }
@@ -682,7 +682,7 @@ namespace KinematicCharacterController
                 return; 
             }
             
-            camera.OnCharacterLand(fallSpeed);
+            characterCamera.OnCharacterLand(fallSpeed);
         }
 
         protected void OnLeaveStableGround()

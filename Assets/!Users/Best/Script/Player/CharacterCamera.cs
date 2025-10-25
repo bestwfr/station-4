@@ -32,7 +32,6 @@ namespace KinematicCharacterController
         public float JumpLiftMagnitude = 0.2f;    // How much the camera lifts (positive for up)
         public float JumpLiftDuration = 0.1f;     // Duration of the initial lift
         public float JumpLiftDecaySpeed = 15f;    // Speed at which the lift fades out
-        private float _jumpImpactOffset = 0f;     // Current vertical offset from lift
         private float _jumpImpactTimer = 0f;      // Timer to track the initial phase
         private float _targetJumpOffset = 0f;
         
@@ -398,7 +397,6 @@ namespace KinematicCharacterController
         
         public void OnCharacterJump()
         {
-            Debug.Log("Jump Lift Triggered");
             _targetJumpOffset = JumpLiftMagnitude; // Set the target to the full lift magnitude
             _jumpImpactTimer = JumpLiftDuration;
             
