@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Serialization;
@@ -13,6 +12,7 @@ namespace KinematicCharacterController
         [Header("Dependencies")] 
         public MainCharacterController CharacterController;
         public CharacterSoundSystem characterSoundSystem;
+        public Gun gun;
 
         [Header("Framing")] public Camera Camera;
         public Vector2 FollowPointFraming = new Vector2(0f, 0f);
@@ -45,7 +45,8 @@ namespace KinematicCharacterController
         public float DistanceMovementSpeed = 5f;
         public float DistanceMovementSharpness = 10f;
 
-        [Header("Rotation")] public bool InvertX = false;
+        [Header("Rotation")] 
+        public bool InvertX = false;
         public bool InvertY = false;
         [Range(-90f, 90f)] public float DefaultVerticalAngle = 20f;
         [Range(-90f, 90f)] public float MinVerticalAngle = -90f;
@@ -54,6 +55,19 @@ namespace KinematicCharacterController
         public float RotationSharpness = 10000f;
         public bool RotateWithPhysicsMover = false;
 
+        [Header("Recoil")] 
+        [Tooltip("The magnitude added to the recoil offset every time the gun is fired (Visual KICK-UP).")]
+        public float CameraRecoilFactor = 0.5f; 
+        [Tooltip("The speed at which the camera smoothly recovers and returns to the center target (Visual KICK-DOWN).")]
+        public float RecoilRecoverySpeed = 6f;
+        
+        private float _baseVerticalAngle;     // Player’s aim angle (without recoil)
+        private float _recoilOffset;          // Temporary recoil offset
+        private float _recoilVelocity;        // For smooth damping
+        public float RecoilSmoothTime = 0.2f; // How fast it returns
+
+        private float _currentRecoilRotation = 0f; // Stores the accumulated vertical recoil offset
+        
         [Header("Obstruction")] public float ObstructionCheckRadius = 0.2f;
         public LayerMask ObstructionLayers = -1;
         public float ObstructionSharpness = 10000f;
@@ -75,6 +89,17 @@ namespace KinematicCharacterController
         private float _currentBobFrequency;
         private float _currentBobAmplitude;
         private float _lastBobPhase = 0f;
+        
+        [Header("Item Sway")] 
+        public Transform HeldItemTransform; // Assign the held item's parent object here
+        public float RotationalSwayMagnitude = 0.5f; // Max rotation angle for sway (X/Y)
+        public float PositionSwayMagnitude = 0.005f; // Max positional shift for sway (X/Y)
+        public float SwaySmoothSpeed = 10f; // Speed of the smooth transition
+        public float CounterBobbingScale = 0.5f; // How much to counter the head bob (0.0 to 1.0)
+
+        private Quaternion _initialItemLocalRotation; // Item's starting local rotation
+        private Vector3 _initialItemLocalPosition;   // Item's starting local position
+        private Quaternion _currentSwayRotationOffset;
 
         public Transform Transform { get; private set; }
         public Transform FollowTransform { get; private set; }
@@ -105,6 +130,18 @@ namespace KinematicCharacterController
             DefaultVerticalAngle = Mathf.Clamp(DefaultVerticalAngle, MinVerticalAngle, MaxVerticalAngle);
         }
 
+        void OnEnable()
+        {
+            // Subscribe to the gun's shot event to apply kick
+            gun.OnShootImpact += OnShootImpactReceived;
+        }
+
+        void OnDisable()
+        {
+            // Unsubscribe from the gun's shot event
+            gun.OnShootImpact -= OnShootImpactReceived;
+        }
+
         void Awake()
         {
             Transform = this.transform;
@@ -112,14 +149,33 @@ namespace KinematicCharacterController
             _currentDistance = DefaultDistance;
             TargetDistance = _currentDistance;
 
-            _targetVerticalAngle = 0f;
+            _targetVerticalAngle = DefaultVerticalAngle;
 
             PlanarDirection = Vector3.forward;
 
             // Initialize bobbing parameters
             _currentBobFrequency = bobFrequency;
             _currentBobAmplitude = bobAmplitude;
+            
+            if (HeldItemTransform != null)
+            {
+                _initialItemLocalRotation = HeldItemTransform.localRotation;
+                _initialItemLocalPosition = HeldItemTransform.localPosition;
+            }    
+            
+            _baseVerticalAngle = DefaultVerticalAngle;
         }
+
+        /// <summary>
+        /// Event receiver for weapon fire events to apply vertical recoil.
+        /// (The Instant KICK-UP)
+        /// </summary>
+        private void OnShootImpactReceived()
+        {
+            _recoilOffset += CameraRecoilFactor;       // Kick up
+            _recoilVelocity -= CameraRecoilFactor * 20f; // Optional: adds snap
+        }
+
 
         public void SetCrouchOffset(bool isCrouching)
         {
@@ -164,6 +220,26 @@ namespace KinematicCharacterController
                 Quaternion planarRot = Quaternion.LookRotation(PlanarDirection, FollowTransform.up);
 
                 _targetVerticalAngle -= (rotationInput.y * RotationSpeed);
+                
+                // --- RECOIL RECOVERY AND APPLICATION ---
+
+                // 1️⃣ Base aiming input (player look)
+                _baseVerticalAngle -= rotationInput.y * RotationSpeed;
+                _baseVerticalAngle = Mathf.Clamp(_baseVerticalAngle, MinVerticalAngle, MaxVerticalAngle);
+
+                // 2️⃣ Smooth recoil offset decay (brings the camera back down)
+                _recoilOffset = Mathf.SmoothDamp(
+                    _recoilOffset,       // current value
+                    0f,                  // target value
+                    ref _recoilVelocity, // velocity ref
+                    RecoilSmoothTime,    // smooth time
+                    Mathf.Infinity,
+                    deltaTime
+                );
+
+                // 3️⃣ Combine angles (base + recoil)
+                _targetVerticalAngle = _baseVerticalAngle - _recoilOffset;
+
                 _targetVerticalAngle = Mathf.Clamp(_targetVerticalAngle, MinVerticalAngle, MaxVerticalAngle);
                 Quaternion verticalRot = Quaternion.Euler(_targetVerticalAngle, 0, 0);
                 Quaternion targetRotation = Quaternion.Slerp(Transform.rotation, planarRot * verticalRot,
@@ -253,10 +329,9 @@ namespace KinematicCharacterController
                 Vector3 targetPosition =
                     orbitPivotPoint - ((targetRotation * Vector3.forward) * _currentDistance);
 
-                // --- NEW LAND IMPACT UPDATE (Smoothed) ---
+                // --- LAND IMPACT UPDATE (Smoothed) ---
                 {
                     // A. Transition toward the target offset (This makes the DIVE smooth)
-                    // Use a small fixed smoothing value (e.g., 20f) to make the impact feel quick but not instant.
                     float onsetSharpness = 20f;
                     _landImpactOffset = Mathf.Lerp(_landImpactOffset, _targetLandOffset,
                         1f - Mathf.Exp(-onsetSharpness * deltaTime));
@@ -264,27 +339,73 @@ namespace KinematicCharacterController
                     // B. Handle the decay phase
                     if (_landImpactTimer > 0f)
                     {
-                        // Still in the initial, strong phase
                         _landImpactTimer -= deltaTime;
                     }
                     else
                     {
                         // Decay phase: Smoothly reset the target back to zero.
-                        // This makes the "bouncing back up" smooth.
                         _targetLandOffset = Mathf.Lerp(_targetLandOffset, 0f,
                             1f - Mathf.Exp(-LandImpactDecaySpeed * deltaTime));
                     }
 
                     // --- 2. Apply Position and Land Impact ---
-                    // Apply position to the camera **BEFORE** head bob
                     Transform.position = targetPosition;
-
-                    // Apply the current Land Impact offset
                     Transform.position += Transform.up * _landImpactOffset;
 
                     ApplyHeadBobbing(deltaTime);
+                    
+                    ApplyItemSway(deltaTime, rotationInput);
                 }
             }
+        }
+        
+        private void ApplyItemSway(float deltaTime, Vector3 rotationInput)
+        {
+            if (HeldItemTransform == null)
+            {
+                return;
+            }
+
+            // 1. ROTATIONAL SWAY (Inertia based on camera input)
+            float rotationX = rotationInput.x * -RotationalSwayMagnitude;
+            float rotationY = rotationInput.y * -RotationalSwayMagnitude;
+
+            Quaternion targetRotation = Quaternion.Euler(rotationY, rotationX, 0f);
+
+            _currentSwayRotationOffset = Quaternion.Slerp(
+                _currentSwayRotationOffset,
+                targetRotation,
+                deltaTime * SwaySmoothSpeed
+            );
+            
+            // Apply the final rotation (relative to its starting rotation)
+            HeldItemTransform.localRotation = _initialItemLocalRotation * _currentSwayRotationOffset;
+
+
+            // 2. POSITIONAL SWAY (Countering the Head Bobbing)
+            
+            float verticalBobOffset = Mathf.Sin(_bobbingTimer * Mathf.PI * 2f) * _currentBobAmplitude;
+
+            Vector3 targetPositionOffset = Vector3.zero;
+            
+            // Counter Vertical Bobbing (Move item down when camera bobs up)
+            targetPositionOffset -= Vector3.up * (verticalBobOffset * CounterBobbingScale);
+            
+            // Counter Lateral Bobbing (Move item left when camera sways right)
+            targetPositionOffset -= Vector3.right * (_currentLateral * CounterBobbingScale);
+
+            // Positional sway based on movement speed (forward/backward shift)
+            float forwardShift = Mathf.Clamp01(_smoothedSpeed / bobSpeedReference) * -PositionSwayMagnitude;
+            targetPositionOffset += Vector3.forward * forwardShift;
+            
+            Vector3 smoothedPositionOffset = Vector3.Lerp(
+                HeldItemTransform.localPosition,
+                _initialItemLocalPosition + targetPositionOffset,
+                deltaTime * SwaySmoothSpeed
+            );
+            
+            // Apply the final position
+            HeldItemTransform.localPosition = smoothedPositionOffset;
         }
 
         private void ApplyHeadBobbing(float deltaTime)
@@ -308,10 +429,9 @@ namespace KinematicCharacterController
                 {
                     if (CharacterController.IsTired)
                     {
-                        // Tired walking: higher bob frequency + higher amplitude for heavy steps
-                        targetFrequency = TiredBobFrequency; // fast shallow bob
-                        targetAmplitude = TiredBobAmplitude * 1.5f; // boost amplitude for walking
-                        transitionSmoothing = 4f; // smoother transition to tired state
+                        targetFrequency = TiredBobFrequency; 
+                        targetAmplitude = TiredBobAmplitude * 1.5f; 
+                        transitionSmoothing = 4f; 
                     }
                     else if (CharacterController.IsSprinting)
                     {
@@ -349,9 +469,9 @@ namespace KinematicCharacterController
                 else // standing still
                 {
                     // Slow decay to subtle standing bob
-                    float stillAmplitude = 0.008f; // subtle breathing
-                    float stillFrequency = 0.7f; // slow breathing pace
-                    float stopDecaySpeed = 1.5f; // slower fade to reduce snappy feel
+                    float stillAmplitude = 0.008f; 
+                    float stillFrequency = 0.7f; 
+                    float stopDecaySpeed = 1.5f; 
 
                     _currentBobAmplitude =
                         Mathf.Lerp(_currentBobAmplitude, stillAmplitude, deltaTime * stopDecaySpeed);

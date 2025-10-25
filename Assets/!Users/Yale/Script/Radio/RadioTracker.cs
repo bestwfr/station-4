@@ -123,9 +123,9 @@ public class RadioTracker : MonoBehaviour
             {
                 isRadioOn = true;
                 Debug.Log("วิทยุ: เปิด");
-                radioOnSound.Play();
-                staticSource.Play();
-                whisperSource.Play();
+                // radioOnSound.Play();
+                // staticSource.Play();
+                // whisperSource.Play();
                 UpdateIndicatorLight(); // <<<--- อัปเดตไฟเป็นสีเขียว
                 return true; // <-- "ส่งคำตอบกลับ" ว่าเพิ่งเปิด
             }
