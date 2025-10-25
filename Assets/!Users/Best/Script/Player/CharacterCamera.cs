@@ -35,6 +35,10 @@ namespace KinematicCharacterController
         private float _jumpImpactOffset = 0f;     // Current vertical offset from lift
         private float _jumpImpactTimer = 0f;      // Timer to track the initial phase
         private float _targetJumpOffset = 0f;
+        
+        [Header("Footstep Cooldown")] 
+        public float LandFootstepCooldown = 0.2f; 
+        private float _timeSinceLastLand = 99f; 
 
         [Header("Distance")] public float DefaultDistance = 6f;
         public float MinDistance = 0f;
@@ -286,6 +290,8 @@ namespace KinematicCharacterController
 
         private void ApplyHeadBobbing(float deltaTime)
         {
+            _timeSinceLastLand += deltaTime;
+            
             if (enableBobbing && FollowTransform != null && CharacterController != null &&
                 CharacterController.Motor.GroundingStatus.FoundAnyGround)
             {
@@ -333,7 +339,10 @@ namespace KinematicCharacterController
 
                     if (newPhase < _lastBobPhase)
                     {
-                        characterSoundSystem.StartFootStep(stepVolume);
+                        if (_timeSinceLastLand >= LandFootstepCooldown)
+                        {
+                            characterSoundSystem.StartFootStep(stepVolume);
+                        }
                     }
 
                     _lastBobPhase = newPhase;
@@ -376,7 +385,9 @@ namespace KinematicCharacterController
             if (impactIntensity > 0.05f) 
             {
                 _landImpactTimer = LandImpactDuration;
-                characterSoundSystem.PlayLandSound(impactIntensity);
+                characterSoundSystem.PlayLandSound(impactIntensity * 1.5f);
+                
+                _timeSinceLastLand = 0f;
             }
             else
             {
