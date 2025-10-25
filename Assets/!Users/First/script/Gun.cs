@@ -72,7 +72,7 @@ public class Gun : MonoBehaviour
     void Start()
     {
         currentAmmo = magazineCapacity;
-        reserveAmmo = 1000;
+        reserveAmmo = 0;
         playerLayerMask = ~LayerMask.GetMask("Player");
         
         if (audioSource == null)
@@ -129,11 +129,11 @@ public class Gun : MonoBehaviour
             }
         }
         
-        // Input สำหรับการโต้ตอบ (กด E)
-        if (Input.GetKeyDown(KeyCode.E))
-        {
-            Interact();
-        }
+        // // Input สำหรับการโต้ตอบ (กด E)
+        // if (Input.GetKeyDown(KeyCode.E))
+        // {
+        //     Interact();
+        // }
     }
 
     void Shoot()
@@ -245,40 +245,40 @@ public class Gun : MonoBehaviour
         Destroy(trail.gameObject, trail.time);
     }
 
-    void Interact()
-    {
-        Ray ray = new Ray(playerCamera.transform.position, playerCamera.transform.forward);
-        RaycastHit hit;
-        
-        if (Physics.Raycast(ray, out hit, interactRange, playerLayerMask))
-        {
-            // 1. ตรวจสอบ Dialogue Trigger (สำหรับ Dialog ปกติ)
-            DialogueTrigger dialogTrigger = hit.collider.GetComponent<DialogueTrigger>();
-            if (dialogTrigger != null)
-            {
-                if (dialogTrigger.TryInteract()) 
-                {
-                    return; 
-                }
-            }
-            
-            // 2. ตรวจสอบ AmmoPickup (สำหรับเก็บกระสุน)
-            AmmoPickup ammoPickup = hit.collider.GetComponent<AmmoPickup>();
-            if (ammoPickup != null)
-            {
-                // ammoPickup.Collect(this); 
-                return;
-            }
-            
-            // 3. ตรวจสอบ DoorController
-            DoorController door = hit.collider.GetComponent<DoorController>();
-            if (door != null)
-            {
-                door.Interact(gameObject);
-                return;
-            }
-        }
-    }
+    // void Interact()
+    // {
+    //     Ray ray = new Ray(playerCamera.transform.position, playerCamera.transform.forward);
+    //     RaycastHit hit;
+    //     
+    //     if (Physics.Raycast(ray, out hit, interactRange, playerLayerMask))
+    //     {
+    //         // 1. ตรวจสอบ Dialogue Trigger (สำหรับ Dialog ปกติ)
+    //         DialogueTrigger dialogTrigger = hit.collider.GetComponent<DialogueTrigger>();
+    //         if (dialogTrigger != null)
+    //         {
+    //             if (dialogTrigger.TryInteract()) 
+    //             {
+    //                 return; 
+    //             }
+    //         }
+    //         
+    //         // 2. ตรวจสอบ AmmoPickup (สำหรับเก็บกระสุน)
+    //         AmmoPickup ammoPickup = hit.collider.GetComponent<AmmoPickup>();
+    //         if (ammoPickup != null)
+    //         {
+    //             // ammoPickup.Collect(this); 
+    //             return;
+    //         }
+    //         
+    //         // 3. ตรวจสอบ DoorController
+    //         DoorController door = hit.collider.GetComponent<DoorController>();
+    //         if (door != null)
+    //         {
+    //             door.Interact(gameObject);
+    //             return;
+    //         }
+    //     }
+    // }
 
     IEnumerator ReloadRoutine()
     {

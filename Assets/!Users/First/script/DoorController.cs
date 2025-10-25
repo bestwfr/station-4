@@ -1,8 +1,18 @@
 using UnityEngine;
 using System.Collections;
 
+[RequireComponent(typeof(AudioSource))]
 public class DoorController : MonoBehaviour, IInteractable
 {
+    [Header("Audio Settings")]
+    public AudioSource audioSource; // Assign the AudioSource component here
+    public AudioClip openSound;      // Drag the sound file for opening
+    public AudioClip closeSound;     // Drag the sound file for closing
+    
+    [Header("Collider Settings")]
+    // Assign the Collider component of the actual door mesh child here in the Inspector
+    public Collider doorMeshCollider;
+    
     [Header("Door Settings")]
     public Vector3 openRotation = new Vector3(0, 90f, 0);
     public float rotationSpeed = 3f;
@@ -13,6 +23,9 @@ public class DoorController : MonoBehaviour, IInteractable
     [Header("Permanent Seal Settings")]
     public bool sealOnClose = false;
     public float timeToWaitBeforeSeal = 0.5f;
+    
+    [Header("Hitbox Bypass Settings")]
+    public float timeToWaitBeforeColliderEnable = 0.5f;
 
     private bool isOpen = false;
     private bool isPermanentlySealed = false;
@@ -24,6 +37,26 @@ public class DoorController : MonoBehaviour, IInteractable
     {
         initialRotation = transform.localRotation;
         targetRotation = initialRotation;
+
+        // --- NEW ADDITION ---
+        // Optional: If 'doorMeshCollider' is not assigned, try to find a Collider in a child.
+        if (doorMeshCollider == null)
+        {
+            doorMeshCollider = GetComponentInChildren<Collider>();
+            if (doorMeshCollider != null)
+                Debug.LogWarning("Door Mesh Collider found on child, but was not assigned in Inspector. Auto-assigning it.");
+        }
+        // --- END NEW ADDITION ---
+        
+        // Try to automatically get the AudioSource if not assigned
+        if (audioSource == null)
+        {
+            audioSource = GetComponent<AudioSource>();
+            if (audioSource == null)
+            {
+                Debug.LogError("DoorController on " + gameObject.name + " is missing an AudioSource component.");
+            }
+        }
     }
 
     void Update()
@@ -62,11 +95,23 @@ public class DoorController : MonoBehaviour, IInteractable
         isOpen = !isOpen;
 
         if (isOpen)
+        {
             targetRotation = initialRotation * Quaternion.Euler(openRotation);
+            
+            if (doorMeshCollider != null) doorMeshCollider.enabled = true;
+            
+            PlaySound(openSound);
+        }
         else
         {
             targetRotation = initialRotation;
             if (sealOnClose) StartCoroutine(SealAfterClose());
+            
+            // --- NEW ADDITION: Start Coroutine to disable/enable Collider ---
+            if (doorMeshCollider != null) 
+                StartCoroutine(TemporarilyDisableCollider(timeToWaitBeforeColliderEnable));
+            
+            PlaySound(closeSound);
         }
 
         Debug.Log("Door Toggled: " + (isOpen ? "Open" : "Closed"));
@@ -104,6 +149,40 @@ public class DoorController : MonoBehaviour, IInteractable
             handler.interactionUI?.HidePrompt();
 
         ToggleDoor();
+    }
+    
+    IEnumerator TemporarilyDisableCollider(float waitTime)
+    {
+        if (doorMeshCollider == null) yield break;
+
+        // 1. **Close door mesh hitbox for a brief moment**
+        doorMeshCollider.enabled = false;
+        
+        Debug.Log(gameObject.name + " Collider/Hitbox DISABLED briefly.");
+
+        // Wait for the specified duration (e.g., until the door is mostly closed)
+        yield return new WaitForSeconds(waitTime);
+
+        // 2. Re-enable the Collider
+        // Only re-enable if the door is fully closed and not sealed
+        if (!isOpen && !isPermanentlySealed)
+        {
+            doorMeshCollider.enabled = true;
+            Debug.Log(gameObject.name + " Collider/Hitbox ENABLED.");
+        }
+        else if (isPermanentlySealed)
+        {
+            // If sealed, we leave the collider disabled to prevent interaction
+            Debug.Log(gameObject.name + " is SEALED. Collider remains DISABLED.");
+        }
+    }
+    
+    private void PlaySound(AudioClip clip)
+    {
+        if (audioSource != null && clip != null)
+        {
+            audioSource.PlayOneShot(clip);
+        }
     }
 
     public string GetInteractionText()

@@ -6,11 +6,11 @@ using System.Collections.Generic;
 // 1. Define the possible states for the enemy
 public enum EnemyState
 {
-    Wander,     // Neutral patrolling, usually large radius
+    Stalk,       // NEW DEFAULT: Follows player from a calculated distance.
     Chase,
-    Investigate, // Aggressive, multi-point check (high urgency)
+    Investigate, // Aggressive, multi-point search (high urgency)
     Patrol,      // Small-radius patrolling (on edge/post-investigation persistence)
-    Search       // New: Cautious move to a single point, then wait/look (low suspicion)
+    Search       // Cautious move to a single point, then wait/look (low suspicion)
 }
 
 [RequireComponent(typeof(NavMeshAgent))]
@@ -21,22 +21,28 @@ public class EnemyController : MonoBehaviour
 
     [Header("Movement Configuration")]
     public float chaseSpeed = 5f;
-    public float wanderSpeed = 2f;
-    public float patrolSpeed = 1.5f; // Slower, more deliberate patrol
     public float investigateSpeed = 4f; // Increased speed for urgency
+    public float patrolSpeed = 1.5f; // Slower, more deliberate patrol
     
-    public float wanderRadius = 30f;
-    public float patrolRadius = 10f; // Smaller radius for suspicious patrolling
+    [Header("Stalk Configuration")]
+    [Tooltip("The speed used when stalking.")]
+    public float stalkSpeed = 1.0f;
+    [Tooltip("The desired distance to maintain from the player.")]
+    public float stalkDistance = 25f;
+    [Tooltip("How often (in seconds) the enemy recalculates its stalking position.")]
+    public float stalkPathRecalculateDelay = 3.0f;
     
-    public int investigatePointsCount = 4; // Total points to check (center + 3 random)
-    public float investigationDuration = 5f; // Duration of search/patrol/persistence phase
+    public float patrolRadius = 10f; 
+    public int investigatePointsCount = 4; 
+    public float investigationDuration = 5f;
 
     [Header("Current State")]
-    public EnemyState currentState = EnemyState.Wander;
+    public EnemyState currentState = EnemyState.Stalk;
     
-    private Vector3 currentPatrolCenter; // Center point for Patrol/Investigate/Search
-    private Queue<Vector3> investigationPoints = new Queue<Vector3>(); // Points to check
+    private Vector3 currentPatrolCenter; 
+    private Queue<Vector3> investigationPoints = new Queue<Vector3>(); 
     private float investigationTimer = 0f;
+    private float stalkTimer = 0f; // Timer for stalking path recalculation
     
     [Tooltip("The actual target Transform (set by EnemyAI when target is fully known)")]
     public Transform target; // Public field for the target's Transform
@@ -45,17 +51,15 @@ public class EnemyController : MonoBehaviour
     {
         agent = GetComponent<NavMeshAgent>();
         
-        if (currentState == EnemyState.Wander)
+        // Initial state setup
+        if (currentState == EnemyState.Stalk)
         {
-            SetDestinationToRandomPoint(transform.position, wanderRadius, wanderSpeed);
+            agent.speed = stalkSpeed;
         }
     }
 
     // --- Public Commands from EnemyAI ---
 
-    /// <summary>
-    /// Starts the Chase state. Assumes the public 'target' field is set.
-    /// </summary>
     public void StartChase()
     {
         if (target != null)
@@ -64,12 +68,8 @@ public class EnemyController : MonoBehaviour
         }
     }
     
-    /// <summary>
-    /// Starts the Investigate state (aggressive, multi-point search).
-    /// </summary>
     public void StartInvestigate(Vector3 location)
     {
-        // Only start a new investigation if the location is significantly different
         if (currentState != EnemyState.Investigate || Vector3.Distance(currentPatrolCenter, location) > 1f)
         {
             currentPatrolCenter = location;
@@ -78,9 +78,6 @@ public class EnemyController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Starts the Cautious Search state (move to single point, then wait/look).
-    /// </summary>
     public void StartSearch(Vector3 location)
     {
         if (currentState != EnemyState.Search || Vector3.Distance(currentPatrolCenter, location) > 1f)
@@ -90,9 +87,6 @@ public class EnemyController : MonoBehaviour
         }
     }
     
-    /// <summary>
-    /// Starts the Patrol state around a specified center point (Persistence).
-    /// </summary>
     public void StartPatrol(Vector3 center)
     {
         currentPatrolCenter = center;
@@ -100,11 +94,11 @@ public class EnemyController : MonoBehaviour
     }
 
     /// <summary>
-    /// Starts the Wander state with a large radius.
+    /// Starts the Stalk state (the new default neutral behavior).
     /// </summary>
-    public void StartWander()
+    public void StartStalk()
     {
-        ChangeState(EnemyState.Wander);
+        ChangeState(EnemyState.Stalk);
     }
 
     // --- Core Execution Loop ---
@@ -112,8 +106,8 @@ public class EnemyController : MonoBehaviour
     {
         switch (currentState)
         {
-            case EnemyState.Wander:
-                WanderState();
+            case EnemyState.Stalk:
+                StalkState();
                 break;
 
             case EnemyState.Chase:
@@ -149,6 +143,61 @@ public class EnemyController : MonoBehaviour
         }
         return false;
     }
+    
+    // --- Stalking Logic ---
+    private void StalkState()
+    {
+        // Action: Slowly track the player from a distance
+        stalkTimer += Time.deltaTime;
+
+        // Recalculate the stalking destination periodically or if we've arrived
+        if (stalkTimer >= stalkPathRecalculateDelay || (agent.remainingDistance < 1f && !agent.pathPending))
+        {
+            SetNewStalkDestination();
+            stalkTimer = 0f; // Reset timer after setting new path
+        }
+    }
+    
+    private void SetNewStalkDestination()
+    {
+        if (target == null) return; // Cannot stalk without a target
+
+        Vector3 playerPos = target.position;
+        Vector3 enemyPos = transform.position;
+        float distance = Vector3.Distance(playerPos, enemyPos);
+        
+        Vector3 desiredDirection;
+        
+        // 1. Determine a direction to move based on current distance
+        if (distance < stalkDistance * 0.9f)
+        {
+            // Too close, move away (using the inverse direction)
+            desiredDirection = (enemyPos - playerPos).normalized;
+        }
+        else if (distance > stalkDistance * 1.5f)
+        {
+            // Too far, move towards (close the gap faster)
+            desiredDirection = (playerPos - enemyPos).normalized;
+        }
+        else 
+        {
+            // Maintain general stalking distance, slightly circle the player
+            float angle = Random.Range(0f, 360f);
+            desiredDirection = new Vector3(Mathf.Sin(angle), 0, Mathf.Cos(angle));
+        }
+
+        // 2. Calculate the target point offset by the stalk distance
+        float finalStalkDistance = stalkDistance + Random.Range(-5f, 5f);
+        Vector3 targetPoint = playerPos + desiredDirection.normalized * finalStalkDistance;
+
+        NavMeshHit hit;
+        // 3. Sample the NavMesh to find a valid point near the calculated spot
+        if (NavMesh.SamplePosition(targetPoint, out hit, stalkDistance * 2f, NavMesh.AllAreas))
+        {
+            agent.SetDestination(hit.position);
+        }
+    }
+    // -----------------------
 
     private void GenerateInvestigationPath(Vector3 center)
     {
@@ -175,36 +224,6 @@ public class EnemyController : MonoBehaviour
     
     // --- State Logic Functions ---
 
-    private void WanderState()
-    {
-        // If the agent has arrived at its current destination, pick a new one
-        if (!agent.pathPending && agent.remainingDistance < 0.5f)
-        {
-            SetDestinationToRandomPoint(transform.position, wanderRadius, wanderSpeed);
-        }
-    }
-    
-    private void PatrolState()
-    {
-        // Patrol is like Wander, but slower and focused on the last suspicion center
-        if (!agent.pathPending && agent.remainingDistance < 0.5f)
-        {
-            // Patrol around the center of suspicion
-            if (!SetDestinationToRandomPoint(currentPatrolCenter, patrolRadius, patrolSpeed))
-            {
-                 // If a valid patrol point can't be found, give up and wander
-                 StartWander();
-            }
-            
-            // Increment timer to control how long the patrol lasts
-            investigationTimer += Time.deltaTime;
-            if (investigationTimer >= investigationDuration)
-            {
-                StartWander(); // Go back to global wandering
-            }
-        }
-    }
-
     private void ChaseState()
     {
         // Chase requires a target and is updated every frame by setting the destination.
@@ -214,8 +233,8 @@ public class EnemyController : MonoBehaviour
         }
         else
         {
-            // If the target somehow disappeared, go to investigate the last spot
-            StartInvestigate(transform.position); 
+            // Target lost (shouldn't happen if EnemyAI is working, but safe fails)
+            StartStalk(); 
         }
     }
 
@@ -238,19 +257,38 @@ public class EnemyController : MonoBehaviour
         }
     }
     
+    private void PatrolState()
+    {
+        // Patrol is like Wander, but slower and focused on the last suspicion center
+        if (!agent.pathPending && agent.remainingDistance < 0.5f)
+        {
+            // Patrol around the center of suspicion
+            if (!SetDestinationToRandomPoint(currentPatrolCenter, patrolRadius, patrolSpeed))
+            {
+                 // If a valid patrol point can't be found, give up and stalk
+                 StartStalk();
+            }
+            
+            // Increment timer to control how long the patrol lasts
+            investigationTimer += Time.deltaTime;
+            if (investigationTimer >= investigationDuration)
+            {
+                StartStalk(); // Go back to stalking the player
+            }
+        }
+    }
+
     private void SearchState()
     {
-        // Phase 1: Moving to the suspicion center (only happens once on entry)
+        // Phase 1: Moving to the suspicion center
         if (agent.remainingDistance > 0.5f)
         {
-            // Still moving towards the initial suspicion point
             return;
         }
 
-        // Phase 2: Arrived, now looking around (if timer hasn't started)
+        // Phase 2: Arrived, now looking around
         if (investigationTimer <= 0f)
         {
-            // Stop movement at the point of interest and start the timer
             agent.isStopped = true; 
         }
 
@@ -260,8 +298,8 @@ public class EnemyController : MonoBehaviour
         if (investigationTimer >= investigationDuration)
         {
             // Time's up, nothing found.
-            agent.isStopped = false; // Important: Resume movement before starting Wander
-            StartWander();
+            agent.isStopped = false; 
+            StartStalk(); // Go back to stalking the player
         }
     }
 
@@ -284,19 +322,18 @@ public class EnemyController : MonoBehaviour
         {
             agent.speed = chaseSpeed;
         }
-        else if (newState == EnemyState.Wander)
+        else if (newState == EnemyState.Stalk)
         {
-            SetDestinationToRandomPoint(transform.position, wanderRadius, wanderSpeed);
+            agent.speed = stalkSpeed;
+            stalkTimer = stalkPathRecalculateDelay; // Force immediate path calculation on entry
         }
         else if (newState == EnemyState.Investigate)
         {
             agent.speed = investigateSpeed;
-            // Destination is set in StartInvestigate
         }
         else if (newState == EnemyState.Patrol)
         {
             agent.speed = patrolSpeed;
-            // Destination is set in PatrolState when it runs
         }
         else if (newState == EnemyState.Search)
         {
@@ -305,7 +342,6 @@ public class EnemyController : MonoBehaviour
             NavMeshHit hit;
             if (NavMesh.SamplePosition(currentPatrolCenter, out hit, 1f, NavMesh.AllAreas))
                 agent.SetDestination(hit.position);
-            // Timer logic starts in SearchState()
         }
         
         currentState = newState;

@@ -6,6 +6,9 @@ using TMPro;
 using UnityEditor;
 #endif // UNITY_EDITOR
 
+// NOTE: This file assumes the EnemyController script's EnemyState enum has been updated
+// to include Stalk, Investigate, Patrol, and Search.
+
 [RequireComponent(typeof(AwarenessSystem))]
 [RequireComponent(typeof(EnemyController))] // Ensure EnemyController is still required
 public class EnemyAI : MonoBehaviour
@@ -64,10 +67,10 @@ public class EnemyAI : MonoBehaviour
             playerTarget = playerGO.transform;
         }
         
-        // Ensure the enemy starts wandering immediately if not already doing so
-        if (motor != null && motor.currentState == EnemyState.Wander)
+        // Ensure the enemy starts stalking/wandering immediately if not already doing so
+        if (motor != null && motor.currentState == EnemyState.Stalk)
         {
-            motor.StartWander();
+            motor.StartStalk();
         }
     }
 
@@ -116,7 +119,7 @@ public class EnemyAI : MonoBehaviour
         float angleToTarget = Vector3.Angle(EyeDirection, targetDirection);
 
         // 1. Cone and Range Check
-        if (distanceToTarget <= VisionConeRange && angleToTarget <= VisionConeAngle) // FIX APPLIED HERE
+        if (distanceToTarget <= VisionConeRange && angleToTarget <= VisionConeAngle) 
         {
             // 2. Line of Sight (LOS) Check using raycast
             RaycastHit hit;
@@ -137,20 +140,16 @@ public class EnemyAI : MonoBehaviour
     }
     
     // --- State Listeners (Commands EnemyController) ---
-    // Note: We use the full signature (targetGO, lastSensedPosition) to allow for proper Investigate/Search pathing.
-
-    // Awareness >= 0 (Suspicion - usually triggered by noise/proximity)
+    
     public void OnSuspicious(GameObject targetGO, Vector3 lastSensedPosition)
     {
-        // The Update loop will show the awareness level
         motor.StartSearch(lastSensedPosition);
     }
 
-    // Awareness >= 1 (Detected - location is locked, but not chasing yet)
     public void OnDetected(GameObject targetGO, Vector3 lastSensedPosition)
     {
-        // FIX: Prevent state regression. If the AI is already chasing (Chase) or aggressively searching (Investigate),
-        // we ignore this lower-priority OnDetected command (which starts Investigate).
+        // FIX: Prevent state regression. If the AI is already chasing (Chase) or aggressively investigating,
+        // we ignore this lower-priority OnDetected command (which starts Search/Investigate).
         if (motor.currentState == EnemyState.Chase || motor.currentState == EnemyState.Investigate)
             return;
 
@@ -158,10 +157,10 @@ public class EnemyAI : MonoBehaviour
         if (motor.target == null || motor.target.gameObject != targetGO)
             motor.target = targetGO.transform;
 
+        // Start investigation, assuming the player is nearby
         motor.StartInvestigate(lastSensedPosition); 
     }
 
-    // Awareness >= 2 (Fully Detected - start chasing)
     public void OnFullyDetected(GameObject targetGO)
     {
         // Set the target for the motor (Chase state)
@@ -171,35 +170,31 @@ public class EnemyAI : MonoBehaviour
         motor.StartChase();
     }
 
-    // Awareness drops below 2 while chasing (e.g., player broke LOS)
     public void OnLostDetect(GameObject targetGO, Vector3 lastSensedPosition)
     {
         // Stop chasing, start investigating the last known position.
         motor.StartInvestigate(lastSensedPosition); 
     }
 
-    // Awareness drops below 1 while investigating (e.g., they didn't find the player at the spot)
     public void OnLostSuspicion(GameObject targetGO, Vector3 lastInvestigatedCenter)
     {
         // Transition to the persistent Patrol state around the center of the last suspicion.
         motor.StartPatrol(lastInvestigatedCenter); 
     }
 
-    // Awareness drops to 0 (Target culled from tracking)
     public void OnFullyLost()
     {
         // Clear the target reference from the motor
         if (motor.target != null)
             motor.target = null;
             
-        motor.StartWander();
+        motor.StartStalk(); // Changed from StartWander() to StartStalk()
     }
     
     // --- Report Handlers (Feeds Awareness System) ---
-    // These methods perform initial range checks before reporting to the AwarenessSystem.
+    
     public void ReportCanSee(DetectableTarget seen)
     {
-        // Note: The visibility check is now handled in CheckForSight(), so this only forwards the event.
         Awareness.ReportCanSee(seen);
     }
     
