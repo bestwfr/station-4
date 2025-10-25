@@ -24,12 +24,12 @@ namespace FirstGearGames.SmoothCameraShaker.Demo
         {
             if (Rb != null)
             { 
-                Rb.velocity = Vector3.zero;
+                Rb.linearVelocity = Vector3.zero;
                 Rb.angularVelocity = Vector3.zero;
             }
             if (Rb2d != null)
             {
-                Rb2d.velocity = Vector2.zero;
+                Rb2d.linearVelocity = Vector2.zero;
                 Rb2d.angularVelocity = 0f;
             }
 
