@@ -48351,6 +48351,7 @@ GameObject:
   - component: {fileID: 2086162044}
   - component: {fileID: 2086162043}
   - component: {fileID: 2086162042}
+  - component: {fileID: 2086162051}
   - component: {fileID: 2086162050}
   - component: {fileID: 2086162049}
   - component: {fileID: 2086162048}
@@ -48376,7 +48377,7 @@ NavMeshAgent:
   m_Speed: 3.5
   m_Acceleration: 8
   avoidancePriority: 50
-  m_AngularSpeed: 120
+  m_AngularSpeed: 150
   m_StoppingDistance: 0
   m_AutoTraverseOffMeshLink: 1
   m_AutoBraking: 1
@@ -48470,13 +48471,13 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   VisionMinimumAwareness: 1
-  VisionAwarenessBuildRate: 10
+  VisionAwarenessBuildRate: 100
   HearingMinimumAwareness: 0
-  HearingAwarenessBuildRate: 2
+  HearingAwarenessBuildRate: 70
   ProximityMinimumAwareness: 0
   ProximityAwarenessBuildRate: 1
   AwarenessDecayDelay: 0.1
-  AwarenessDecayRate: 0.4
+  AwarenessDecayRate: 0.2
 --- !u!114 &2086162047
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -48528,14 +48529,73 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3b0cac30ce4fc8d409c024a6bdb1890e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyAI
+  motor: {fileID: 2086162051}
   FeedbackDisplay: {fileID: 1946234935}
+  visionBlockerLayers:
+    serializedVersion: 2
+    m_Bits: 1
+  _VisionSensitivity:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0.0077056885
+      inSlope: 2.0013127
+      outSlope: 2.0013127
+      tangentMode: 34
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 0.4958217
+      value: 1
+      inSlope: 0.007033229
+      outSlope: 0.007033229
+      tangentMode: 34
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 1
+      value: -0.0019264221
+      inSlope: -1.9872463
+      outSlope: -1.9872463
+      tangentMode: 34
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
   _VisionConeAngle: 60
   _VisionConeRange: 30
-  _VisionConeColour: {r: 1, g: 0, b: 0, a: 0.25}
-  _HearingRange: 20
-  _HearingRangeColour: {r: 1, g: 1, b: 0, a: 0.25}
+  _VisionConeColour: {r: 1, g: 0, b: 0, a: 0.039215688}
+  _HearingRange: 50
+  _HearingRangeColour: {r: 1, g: 1, b: 0, a: 0.05882353}
   _ProximityDetectionRange: 3
-  _ProximityRangeColour: {r: 1, g: 1, b: 1, a: 0.25}
+  _ProximityRangeColour: {r: 1, g: 1, b: 1, a: 0.050980393}
+--- !u!114 &2086162051
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2086162041}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2d426897afe94ea184f3af97189d17f9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyController
+  chaseSpeed: 5
+  wanderSpeed: 2
+  patrolSpeed: 1.5
+  investigateSpeed: 3
+  wanderRadius: 20
+  patrolRadius: 10
+  investigatePointsCount: 4
+  investigationDuration: 5
+  currentState: 0
+  target: {fileID: 6505057340831361182}
 --- !u!1 &2099376744
 GameObject:
   m_ObjectHideFlags: 0
@@ -50816,7 +50876,7 @@ Transform:
   m_GameObject: {fileID: 6508550501183087756}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0.7071068, z: 0, w: 0.70710677}
-  m_LocalPosition: {x: -34.38, y: 0.08, z: -18.52}
+  m_LocalPosition: {x: -32.32, y: 0.08, z: -20.35}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:

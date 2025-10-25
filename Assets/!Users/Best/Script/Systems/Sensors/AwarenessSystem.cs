@@ -19,7 +19,7 @@ class TrackedTarget
 
         if (target != null)
             Detectable      = target;
-        RawPosition     = position;
+        RawPosition     = position; // Crucial: Update the last known position
         LastSensedTime  = Time.time;
         Awareness       = Mathf.Clamp(Mathf.Max(Awareness, minAwareness) + awareness, 0f, 2f);
         
@@ -82,19 +82,22 @@ public class AwarenessSystem : MonoBehaviour
         List<GameObject> toCleanup = new List<GameObject>();
         foreach(var targetGO in Targets.Keys)
         {
-            if (Targets[targetGO].DecayAwareness(AwarenessDecayDelay, AwarenessDecayRate * Time.deltaTime))
+            var targetData = Targets[targetGO]; // Get data for passing to AI
+
+            if (targetData.DecayAwareness(AwarenessDecayDelay, AwarenessDecayRate * Time.deltaTime))
             {
-                if (Targets[targetGO].Awareness <= 0f)
+                if (targetData.Awareness <= 0f)
                 {
                     LinkedAI.OnFullyLost();
                     toCleanup.Add(targetGO);
                 }
                 else
                 {
-                    if (Targets[targetGO].Awareness >= 1f)
-                        LinkedAI.OnLostDetect(targetGO);
+                    // PASS LAST KNOWN POSITION when losing detection
+                    if (targetData.Awareness >= 1f)
+                        LinkedAI.OnLostDetect(targetGO, targetData.RawPosition);
                     else
-                        LinkedAI.OnLostSuspicion();
+                        LinkedAI.OnLostSuspicion(targetGO, targetData.RawPosition);
                 }
             }
         }
@@ -113,12 +116,15 @@ public class AwarenessSystem : MonoBehaviour
         // update target awareness
         if (Targets[targetGO].UpdateAwareness(target, position, awareness, minAwareness))
         {
-            if (Targets[targetGO].Awareness >= 2f)
+            var targetData = Targets[targetGO]; // Get data for passing to AI
+
+            // PASS LAST KNOWN POSITION when gaining detection
+            if (targetData.Awareness >= 2f)
                 LinkedAI.OnFullyDetected(targetGO);
-            else if (Targets[targetGO].Awareness >= 1f)
-                LinkedAI.OnDetected(targetGO);
-            else if (Targets[targetGO].Awareness >= 0f)
-                LinkedAI.OnSuspicious(targetGO);
+            else if (targetData.Awareness >= 1f)
+                LinkedAI.OnDetected(targetGO, targetData.RawPosition);
+            else if (targetData.Awareness >= 0f)
+                LinkedAI.OnSuspicious(targetGO, targetData.RawPosition);
         }
     }
 
@@ -129,8 +135,8 @@ public class AwarenessSystem : MonoBehaviour
         var dotProduct = Vector3.Dot(vectorToTarget, LinkedAI.EyeDirection);
 
         // determine the awareness contribution
-        var awareness = VisionSensitivity.Evaluate(dotProduct) * VisionAwarenessBuildRate * Time.deltaTime;
-
+        var awareness = LinkedAI.VisionSensitivity.Evaluate(dotProduct) * VisionAwarenessBuildRate * Time.deltaTime; // Access curve via AI
+        
         UpdateAwareness(seen.gameObject, seen, seen.transform.position, awareness, VisionMinimumAwareness);
     }
 
@@ -138,6 +144,7 @@ public class AwarenessSystem : MonoBehaviour
     {
         var awareness = intensity * HearingAwarenessBuildRate * Time.deltaTime;
 
+        // NOTE: The location here IS the last sensed position (noise source)
         UpdateAwareness(source, null, location, awareness, HearingMinimumAwareness);
     }
 
@@ -146,5 +153,14 @@ public class AwarenessSystem : MonoBehaviour
         var awareness = ProximityAwarenessBuildRate * Time.deltaTime;
 
         UpdateAwareness(target.gameObject, target, target.transform.position, awareness, ProximityMinimumAwareness);
-    }    
+    }   
+    
+    public float GetAwarenessForTarget(GameObject targetGO)
+    {
+        if (Targets.ContainsKey(targetGO))
+        {
+            return Targets[targetGO].Awareness;
+        }
+        return 0f;
+    }
 }
