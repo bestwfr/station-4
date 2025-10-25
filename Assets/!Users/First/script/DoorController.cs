@@ -1,24 +1,32 @@
 using UnityEngine;
+using System.Collections; // เผื่อต้องการใช้ Coroutine ในการเปิดประตูแบบนิ่มนวล
 
-public class DoorController : MonoBehaviour
+// ต้องมี 'using UnityEngine;' และต้อง Implements IInteractable
+public class DoorController : MonoBehaviour, IInteractable
 {
+    // ตัวแปรที่ต้องการสำหรับการหมุนประตู
     [Header("Door Settings")]
-    public float openAngle = 90f;   // องศาที่ประตูจะหมุนเปิด (เช่น 90 องศา)
-    public float closeAngle = 0f;  // องศาที่ประตูจะหมุนปิด
-    public float rotationSpeed = 2f; // ความเร็วในการหมุนเปิด/ปิด
+    [Tooltip("แกนและมุมที่ประตูจะเปิด (เช่น Y = 90)")]
+    public Vector3 openRotation = new Vector3(0, 90f, 0); // หมุนรอบแกน Y 90 องศา
+    
+    [Tooltip("ความเร็วในการเปิด/ปิดประตู")]
+    public float rotationSpeed = 3f;
 
+    // ตัวแปรส่วนตัว
     private bool isOpen = false;
-    private Quaternion targetRotation; // การหมุนเป้าหมายที่ต้องการไปถึง
+    private Quaternion initialRotation; // Rotation เริ่มต้น
+    private Quaternion targetRotation;  // Rotation เป้าหมาย
 
     void Start()
     {
-        // กำหนดให้ประตูอยู่ในสถานะปิดเมื่อเริ่มเกม
-        targetRotation = Quaternion.Euler(0, closeAngle, 0);
+        // เก็บ Rotation เริ่มต้นไว้เมื่อเกมเริ่ม
+        initialRotation = transform.localRotation;
+        targetRotation = initialRotation;
     }
 
     void Update()
     {
-        // หมุนประตูเข้าหา targetRotation อย่างต่อเนื่องและนุ่มนวล
+        // 💡 NEW: ทำให้ประตูหมุนไปยัง Rotation เป้าหมายอย่างนุ่มนวล
         transform.localRotation = Quaternion.Slerp(
             transform.localRotation, 
             targetRotation, 
@@ -26,22 +34,42 @@ public class DoorController : MonoBehaviour
         );
     }
 
-    // ฟังก์ชันที่สคริปต์ Gun จะเรียกใช้เมื่อผู้เล่นกด 'E'
+    // ----------------------------------------------------
+    // IInteractable Implementation
+    // ----------------------------------------------------
+    
+    public void Interact(Gun interactor)
+    {
+        // 💡 ตรวจสอบว่าถูกเรียกใช้
+        Debug.Log("Door Interact called by " + interactor.gameObject.name); 
+        ToggleDoor(); 
+    }
+
+    public string GetInteractionText()
+    {
+        // ข้อความจะเปลี่ยนตามสถานะประตู
+        return isOpen ? "Close Door" : "Open Door";
+    }
+    
+    // ----------------------------------------------------
+    // Logic การเปิด/ปิดประตูจริง
+    // ----------------------------------------------------
+    
     public void ToggleDoor()
     {
-        isOpen = !isOpen; // สลับสถานะ (ถ้าเปิดอยู่ก็ปิด, ถ้าปิดอยู่ก็เปิด)
-
+        isOpen = !isOpen;
+        
         if (isOpen)
         {
-            // ถ้าเปิด: กำหนดการหมุนเป้าหมายเป็น openAngle
-            targetRotation = Quaternion.Euler(0, openAngle, 0);
-            Debug.Log(gameObject.name + " Opened.");
+            // กำหนดเป้าหมายให้เป็น Rotation เปิด
+            targetRotation = initialRotation * Quaternion.Euler(openRotation);
         }
         else
         {
-            // ถ้าปิด: กำหนดการหมุนเป้าหมายเป็น closeAngle
-            targetRotation = Quaternion.Euler(0, closeAngle, 0);
-            Debug.Log(gameObject.name + " Closed.");
+            // กำหนดเป้าหมายให้เป็น Rotation เริ่มต้น (ปิด)
+            targetRotation = initialRotation;
         }
+        
+        Debug.Log("Door Toggled: " + (isOpen ? "Open" : "Closed"));
     }
 }

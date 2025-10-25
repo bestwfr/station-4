@@ -1,37 +1,26 @@
 using UnityEngine;
-// Removed: using System.Collections;
 
-public class AmmoPickup : MonoBehaviour
+// ต้อง implements IInteractable
+public class AmmoPickup : MonoBehaviour, IInteractable
 {
-    // กำหนดจำนวนกระสุนสำรองที่จะได้รับจากกล่องนี้
-    [Header("Pickup Settings")]
-    public int ammoAmount = 18; 
-    
-    // 💡 NEW: ตัวแปรสถานะ เพื่อให้เก็บได้แค่ครั้งเดียวต่อการปรากฏตัว
-    private bool collected = false;
+    public int ammoAmount = 30;
 
-    // ฟังก์ชันนี้ถูกเรียกโดยสคริปต์ Gun เมื่อผู้เล่นกด E (Raycast Hit)
-    public void Collect(Gun gunScript)
+    // ใช้เมธอด GetInteractionText() เพื่อบอก UI ว่าต้องแสดงอะไร
+    public string GetInteractionText()
     {
-        // ตรวจสอบว่ายังไม่ได้เก็บ
-        if (collected)
-        {
-            return;
-        }
-        
-        // 1. เรียกฟังก์ชันในสคริปต์ Gun เพื่อเพิ่มกระสุนสำรอง
-        gunScript.AddReserveAmmo(ammoAmount);
-        
-        // 2. ปิด Collider เพื่อให้กล่องอยู่แต่เก็บซ้ำไม่ได้
-        Collider col = GetComponent<Collider>();
-        if (col != null)
-        {
-            col.enabled = false;
-        }
-        
-        // 3. ตั้งสถานะว่าเก็บแล้ว
-        collected = true;
+        return "Pickup Ammo";
+    }
 
-        // *** สามารถเพิ่มเสียงหรือเอฟเฟกต์เก็บกระสุนตรงนี้ได้ในอนาคต ***
+    // ใช้เมธอด Interact() เพื่อบอกว่าเมื่อถูกโต้ตอบแล้วต้องทำอะไร
+    public void Interact(Gun interactor)
+    {
+        if (interactor != null)
+        {
+            // เรียกเมธอด AddReserveAmmo ของสคริปต์ Gun
+            interactor.AddReserveAmmo(ammoAmount);
+            
+            // เก็บเสร็จแล้วก็ทำลายตัวเอง
+            Destroy(gameObject);
+        }
     }
 }

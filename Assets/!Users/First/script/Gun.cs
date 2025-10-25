@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections;
+using System; 
 
 public class Gun : MonoBehaviour
 {
@@ -8,18 +9,21 @@ public class Gun : MonoBehaviour
     public AudioSource audioSource;
     public AudioClip shootSound;
     public AudioClip reloadSound;
-    public AudioClip cockingSound; // เสียงชักกระสุนหลังยิง
-    
-    // ... (โค้ด Gun Settings, Ammo Settings, References, VFX & Tracer เดิม) ...
+    public AudioClip cockingSound;
+
+    // ==================== Gun Settings ====================
     [Header("Gun Settings")]
     public float range = 100f;
     public float damage = 10f;
     public float fireRate = 5f;
     private float nextFireTime = 0f;
-    
+
+    // ==================== Interaction ====================
     [Header("Interaction Settings")]
     public float interactRange = 5f;
+    public InteractionUI interactionUI;
 
+    // ==================== Ammo Settings ====================
     [Header("Ammo Settings")]
     public int magazineCapacity = 6;
     private int currentAmmo;
@@ -27,38 +31,38 @@ public class Gun : MonoBehaviour
     public float reloadTime = 1.5f;
     private bool isReloading = false;
 
+    // ==================== References ====================
     [Header("References")]
     public Transform muzzle;
     public Camera playerCamera;
-    public ParticleSystem muzzleFlash;
-    
+    public ParticleSystem muzzleFlash; // << ต้องลาก Component Particle System มาใส่ตรงนี้
+
+    // ==================== VFX & Tracer ====================
     [Header("VFX & Tracer")]
     public TrailRenderer bulletTracerPrefab;
     public GameObject impactEffect;
 
-    // 🚨 NEW: อ้างอิง GameObject ที่มี Animator (คือ Gunmo/Gunmodel)
+    // ==================== Animation ====================
     [Header("Animation")]
-    public GameObject animatedGunObject; 
-    private Animator gunAnimator; // ตัวแปรส่วนตัวสำหรับเก็บ Animator Component
-    
-    private int playerLayerMask;
+    public GameObject animatedGunObject;
+    private Animator gunAnimator;
 
+    private int playerLayerMask;
+    private IInteractable currentInteractable; 
+    
+    // ----------------------------------------------------
+    // START & UPDATE
+    // ----------------------------------------------------
+    
     void Start()
     {
         currentAmmo = magazineCapacity;
-        reserveAmmo = 0;
-        playerLayerMask = ~LayerMask.GetMask("Player");
+        playerLayerMask = ~LayerMask.GetMask("Player"); 
+
+        // Initial Setup (AudioSource, Animator)
+        if (audioSource == null) 
+            audioSource = GetComponent<AudioSource>() ?? gameObject.AddComponent<AudioSource>();
         
-        if (audioSource == null)
-        {
-            audioSource = GetComponent<AudioSource>();
-            if (audioSource == null)
-            {
-                audioSource = gameObject.AddComponent<AudioSource>();
-            }
-        }
-        
-        // 🚨 NEW: ดึง Animator Component จาก GameObject ที่ลากมาใส่ (Gunmo)
         if (animatedGunObject != null)
         {
             gunAnimator = animatedGunObject.GetComponent<Animator>();
@@ -67,14 +71,24 @@ public class Gun : MonoBehaviour
                 Debug.LogError("Gun.cs: Animator component not found on the assigned Animated Gun Object!");
             }
         }
+        
+        if (interactionUI == null)
+        {
+            Debug.LogError("InteractionUI reference is missing on the Gun script!");
+        }
+        
+        // 💡 NEW: ปิด GameObject ของ Muzzle Flash ไว้ตั้งแต่เริ่มต้น
+        if (muzzleFlash != null)
+        {
+            muzzleFlash.gameObject.SetActive(false);
+        }
     }
 
     void Update()
     {
-        if (isReloading)
-            return;
+        if (isReloading) return;
 
-        // Input ยิง 
+        // Input ยิง
         if (Input.GetButton("Fire1") && Time.time >= nextFireTime && currentAmmo > 0)
         {
             nextFireTime = Time.time + 1f / fireRate;
@@ -86,116 +100,131 @@ public class Gun : MonoBehaviour
         {
             StartCoroutine(Reload());
         }
-        
-        // Input สำหรับการโต้ตอบ (กด E)
-        if (Input.GetKeyDown(KeyCode.E))
+
+        // Interaction
+        DetectInteraction();
+        if (Input.GetKeyDown(KeyCode.E) && currentInteractable != null)
         {
-            Interact();
+            currentInteractable.Interact(this);
+            currentInteractable = null;
+            if(interactionUI != null) interactionUI.HidePrompt();
         }
     }
-
+    
+    // ----------------------------------------------------
+    // SHOOT LOGIC
+    // ----------------------------------------------------
+    
     void Shoot()
     {
-        if (currentAmmo <= 0) 
-        {
-            return; 
-        }
+        if (currentAmmo <= 0) return; 
 
         currentAmmo--;
         
-        // 🚨 NEW: เรียก Animator Trigger เพื่อเริ่ม Animation Recoil
-        if (gunAnimator != null)
-        {
-            gunAnimator.SetTrigger("Shoot"); // "Shoot" ต้องเป็นชื่อ Trigger ที่คุณตั้งใน Animator
-        }
-        
-        // 1. เล่นเสียงยิงหลัก
-        if (audioSource != null && shootSound != null)
-        {
-            audioSource.PlayOneShot(shootSound);
-        }
-        
-        // 2. สั่งเล่นเสียงชักกระสุน
-        if (cockingSound != null)
-        {
-            StartCoroutine(PlayCockingSoundDelayed(0.15f)); 
-        }
+        // Animation & Sound (ใช้โค้ดเดิมที่ถูกต้อง)
+        if (gunAnimator != null) gunAnimator.SetTrigger("Shoot");
+        if (audioSource != null && shootSound != null) audioSource.PlayOneShot(shootSound);
 
-        // Muzzle Flash
-        if (muzzleFlash != null)
+        
+        // 🚨 การแก้ไข Muzzle Flash Logic
+        if (muzzleFlash != null) 
         {
-            if (!muzzleFlash.gameObject.activeSelf)
+            // 1. เปิด GameObject (ถ้าปิดอยู่)
+            if (!muzzleFlash.gameObject.activeInHierarchy)
             {
                 muzzleFlash.gameObject.SetActive(true);
             }
-            
+            // 2. หยุดและเคลียร์สถานะก่อนเล่นใหม่ทุกครั้ง
             muzzleFlash.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            // 3. สั่งเล่น
             muzzleFlash.Play();
         }
 
-        // Raycast and Tracer (เดิม)
+        // Raycast Setup
         Ray ray = new Ray(playerCamera.transform.position, playerCamera.transform.forward);
-        RaycastHit hit;
-        
-        Vector3 hitPoint;
+        Vector3 hitPoint; 
         Vector3 hitNormal = Vector3.up;
         bool didHit = false;
 
-        if (Physics.Raycast(ray, out hit, range, playerLayerMask))
+        // ทำ Raycast จริง
+        if (Physics.Raycast(ray, out RaycastHit hit, range, playerLayerMask))
         {
             hitPoint = hit.point;
             hitNormal = hit.normal;
             didHit = true;
-            Debug.Log("Hit: " + hit.collider.name);
-            
             Target target = hit.transform.GetComponent<Target>();
-            if (target != null)
-            {
-                target.TakeDamage(damage); 
-            }
+            if (target != null) target.TakeDamage(damage); 
         }
         else
         {
             hitPoint = ray.GetPoint(range);
         }
         
+        // สร้าง Tracer
         if (bulletTracerPrefab != null)
         {
-            TrailRenderer tracer = Instantiate(
-                bulletTracerPrefab, 
-                muzzle.position,
-                Quaternion.identity
-            );
+            TrailRenderer tracer = Instantiate(bulletTracerPrefab, muzzle.position, Quaternion.identity);
             StartCoroutine(SpawnTrail(tracer, hitPoint, hitNormal, didHit));
         }
+        
+        StartCoroutine(PlayCockingSoundDelayed(0.15f)); 
     }
     
+    // ----------------------------------------------------
+    // UTILITY METHODS (Reload & VFX)
+    // ----------------------------------------------------
+    
+    public void AddReserveAmmo(int amount)
+    {
+        reserveAmmo += amount;
+        Debug.Log("Picked up ammo. Reserve: " + reserveAmmo);
+    }
+    
+    IEnumerator Reload()
+    {
+        if (isReloading || currentAmmo == magazineCapacity || reserveAmmo <= 0)
+            yield break;
+
+        isReloading = true;
+
+        // Animation & Sound (ใช้โค้ดเดิมที่ถูกต้อง)
+        if (gunAnimator != null) gunAnimator.SetTrigger("Reload");
+        if (audioSource != null && reloadSound != null) audioSource.PlayOneShot(reloadSound);
+        
+        yield return new WaitForSeconds(reloadTime);
+
+        int bulletsToReload = magazineCapacity - currentAmmo;
+        int actualReloadAmount = Mathf.Min(bulletsToReload, reserveAmmo);
+
+        currentAmmo += actualReloadAmount;
+        reserveAmmo -= actualReloadAmount;
+
+        isReloading = false;
+        
+        StartCoroutine(PlayCockingSoundDelayed(0.1f)); 
+    }
+
     IEnumerator PlayCockingSoundDelayed(float delayTime)
     {
         yield return new WaitForSeconds(delayTime);
-        
         if (audioSource != null && cockingSound != null)
         {
-            if (!isReloading)
-            {
-                audioSource.PlayOneShot(cockingSound);
-            }
+            audioSource.PlayOneShot(cockingSound);
         }
     }
 
     IEnumerator SpawnTrail(TrailRenderer trail, Vector3 hitPoint, Vector3 hitNormal, bool didHit)
     {
-        float trailTime = 0.1f;
         float time = 0;
         Vector3 startPosition = trail.transform.position;
-        
+
         while (time < 1)
         {
             trail.transform.position = Vector3.Lerp(startPosition, hitPoint, time);
-            time += Time.deltaTime / trailTime;
+            time += Time.deltaTime / trail.time;
             yield return null;
         }
-        
+
         trail.transform.position = hitPoint;
         
         if (didHit && impactEffect != null)
@@ -203,70 +232,37 @@ public class Gun : MonoBehaviour
             GameObject impact = Instantiate(impactEffect, hitPoint, Quaternion.LookRotation(hitNormal));
             Destroy(impact, 2f);
         }
-        
+
         Destroy(trail.gameObject, trail.time);
     }
-
-    void Interact()
+    
+    private void DetectInteraction()
     {
         Ray ray = new Ray(playerCamera.transform.position, playerCamera.transform.forward);
-        RaycastHit hit;
         
-        if (Physics.Raycast(ray, out hit, interactRange, playerLayerMask))
+        if (Physics.Raycast(ray, out RaycastHit hit, interactRange, playerLayerMask))
         {
-            // 1. ตรวจสอบ Dialogue Trigger (สำหรับ Dialog ปกติ)
-            DialogueTrigger dialogTrigger = hit.collider.GetComponent<DialogueTrigger>();
-            if (dialogTrigger != null)
+            if (hit.collider.TryGetComponent(out IInteractable interactable))
             {
-                if (dialogTrigger.TryInteract()) 
+                if (currentInteractable != interactable)
                 {
-                    return; 
+                    currentInteractable = interactable;
+                    if(interactionUI != null)
+                    {
+                        interactionUI.ShowPrompt(currentInteractable.GetInteractionText());
+                    }
                 }
-            }
-            
-            // 2. ตรวจสอบ AmmoPickup (สำหรับเก็บกระสุน)
-            AmmoPickup ammoPickup = hit.collider.GetComponent<AmmoPickup>();
-            if (ammoPickup != null)
-            {
-                ammoPickup.Collect(this); 
-                return;
-            }
-            
-            // 3. ตรวจสอบ DoorController
-            DoorController door = hit.collider.GetComponent<DoorController>();
-            if (door != null)
-            {
-                door.ToggleDoor();
                 return;
             }
         }
-    }
 
-    IEnumerator Reload()
-    {
-        isReloading = true;
-        Debug.Log("Reloading...");
-
-        if (audioSource != null && reloadSound != null)
+        if (currentInteractable != null)
         {
-            audioSource.PlayOneShot(reloadSound);
+            currentInteractable = null;
+            if(interactionUI != null)
+            {
+                interactionUI.HidePrompt();
+            }
         }
-
-        yield return new WaitForSeconds(reloadTime); 
-
-        int ammoNeeded = magazineCapacity - currentAmmo;
-        int ammoToUse = Mathf.Min(ammoNeeded, reserveAmmo);
-        
-        currentAmmo += ammoToUse;
-        reserveAmmo -= ammoToUse;
-        
-        isReloading = false;
-        Debug.Log("Reload Complete. Ammo: " + currentAmmo + " / " + reserveAmmo);
-    }
-    
-    public void AddReserveAmmo(int amount)
-    {
-        reserveAmmo += amount;
-        Debug.Log("Picked up ammo. Reserve: " + reserveAmmo);
     }
 }
