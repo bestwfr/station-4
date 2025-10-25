@@ -241,19 +241,19 @@ MonoBehaviour:
   active: 1
   scanlinesWeight:
     m_OverrideState: 1
-    m_Value: 1
+    m_Value: 0.1
   noiseWeight:
     m_OverrideState: 1
-    m_Value: 1
+    m_Value: 0.8
   screenBendX:
     m_OverrideState: 1
-    m_Value: 1000
+    m_Value: 500
   screenBendY:
     m_OverrideState: 1
-    m_Value: 1000
+    m_Value: 500
   vignetteAmount:
     m_OverrideState: 1
-    m_Value: 0
+    m_Value: 0.52
   vignetteSize:
     m_OverrideState: 1
     m_Value: 2
@@ -265,13 +265,13 @@ MonoBehaviour:
     m_Value: 1
   scanlinesDensity:
     m_OverrideState: 1
-    m_Value: 200
+    m_Value: 173.9
   scanlinesSpeed:
     m_OverrideState: 1
     m_Value: -10
   noiseAmount:
     m_OverrideState: 1
-    m_Value: 250
+    m_Value: 1401.91
   chromaticRed:
     m_OverrideState: 1
     m_Value: {x: 0, y: 0}
@@ -283,10 +283,10 @@ MonoBehaviour:
     m_Value: {x: 0, y: 0}
   grilleOpacity:
     m_OverrideState: 1
-    m_Value: 0.4
+    m_Value: 0.33
   grilleCounterOpacity:
     m_OverrideState: 1
-    m_Value: 0.2
+    m_Value: 0.05
   grilleResolution:
     m_OverrideState: 1
     m_Value: 360
@@ -298,10 +298,10 @@ MonoBehaviour:
     m_Value: 90
   grilleBrightness:
     m_OverrideState: 1
-    m_Value: 15
+    m_Value: 70
   grilleUvMidPoint:
     m_OverrideState: 1
-    m_Value: 0.5
+    m_Value: -8.2
   grilleShift:
     m_OverrideState: 1
     m_Value: {x: 1, y: 1, z: 1}
@@ -407,13 +407,13 @@ MonoBehaviour:
   active: 1
   widthPixelation:
     m_OverrideState: 1
-    m_Value: 1000
+    m_Value: 512
   heightPixelation:
     m_OverrideState: 1
-    m_Value: 477.5
+    m_Value: 256
   colorPrecision:
     m_OverrideState: 1
-    m_Value: 16
+    m_Value: 180.92
 --- !u!114 &-2353138089592410396
 MonoBehaviour:
   m_ObjectHideFlags: 3
@@ -542,7 +542,7 @@ MonoBehaviour:
   active: 1
   postExposure:
     m_OverrideState: 1
-    m_Value: -0.62
+    m_Value: 0
   contrast:
     m_OverrideState: 1
     m_Value: 0
@@ -554,7 +554,7 @@ MonoBehaviour:
     m_Value: 0
   saturation:
     m_OverrideState: 1
-    m_Value: -28
+    m_Value: -13.5
 --- !u!114 &-758010384845797820
 MonoBehaviour:
   m_ObjectHideFlags: 3
@@ -681,7 +681,7 @@ MonoBehaviour:
     m_Value: 10
   fogColor:
     m_OverrideState: 1
-    m_Value: {r: 1, g: 1, b: 1, a: 1}
+    m_Value: {r: 0, g: 0, b: 0, a: 1}
   ambientColor:
     m_OverrideState: 1
     m_Value: {r: 0.1, g: 0.1, b: 0.1, a: 0.1}
