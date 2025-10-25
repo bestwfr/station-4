@@ -1,75 +1,115 @@
 using UnityEngine;
-using System.Collections; // เผื่อต้องการใช้ Coroutine ในการเปิดประตูแบบนิ่มนวล
+using System.Collections;
 
-// ต้องมี 'using UnityEngine;' และต้อง Implements IInteractable
 public class DoorController : MonoBehaviour, IInteractable
 {
-    // ตัวแปรที่ต้องการสำหรับการหมุนประตู
     [Header("Door Settings")]
-    [Tooltip("แกนและมุมที่ประตูจะเปิด (เช่น Y = 90)")]
-    public Vector3 openRotation = new Vector3(0, 90f, 0); // หมุนรอบแกน Y 90 องศา
-    
-    [Tooltip("ความเร็วในการเปิด/ปิดประตู")]
+    public Vector3 openRotation = new Vector3(0, 90f, 0);
     public float rotationSpeed = 3f;
 
-    // ตัวแปรส่วนตัว
+    [Header("Lock Settings")]
+    public bool isLocked = true; // ตั้ง true → ประตูล็อคตั้งแต่เริ่ม
+
+    [Header("Permanent Seal Settings")]
+    public bool sealOnClose = false;
+    public float timeToWaitBeforeSeal = 0.5f;
+
     private bool isOpen = false;
-    private Quaternion initialRotation; // Rotation เริ่มต้น
-    private Quaternion targetRotation;  // Rotation เป้าหมาย
+    private bool isPermanentlySealed = false;
+    private bool isRotating = false;
+    private Quaternion initialRotation;
+    private Quaternion targetRotation;
 
     void Start()
     {
-        // เก็บ Rotation เริ่มต้นไว้เมื่อเกมเริ่ม
         initialRotation = transform.localRotation;
         targetRotation = initialRotation;
     }
 
     void Update()
     {
-        // 💡 NEW: ทำให้ประตูหมุนไปยัง Rotation เป้าหมายอย่างนุ่มนวล
-        transform.localRotation = Quaternion.Slerp(
-            transform.localRotation, 
-            targetRotation, 
-            Time.deltaTime * rotationSpeed
-        );
+        if (isPermanentlySealed) return;
+
+        if (transform.localRotation != targetRotation)
+        {
+            isRotating = true;
+            transform.localRotation = Quaternion.Slerp(transform.localRotation, targetRotation, Time.deltaTime * rotationSpeed);
+        }
+        else
+        {
+            isRotating = false;
+        }
     }
 
     // ----------------------------------------------------
-    // IInteractable Implementation
+    // Public Methods
     // ----------------------------------------------------
-    
-    public void Interact(Gun interactor)
+    public void UnlockDoor()
     {
-        // 💡 ตรวจสอบว่าถูกเรียกใช้
-        Debug.Log("Door Interact called by " + interactor.gameObject.name); 
-        ToggleDoor(); 
+        isLocked = false;
+        isPermanentlySealed = false;
+        Debug.Log(gameObject.name + " is now UNLOCKED!");
+    }
+
+    public void LockDoor()
+    {
+        isLocked = true;
+        Debug.Log(gameObject.name + " is now LOCKED!");
+    }
+
+    public void ToggleDoor()
+    {
+        isOpen = !isOpen;
+
+        if (isOpen)
+            targetRotation = initialRotation * Quaternion.Euler(openRotation);
+        else
+        {
+            targetRotation = initialRotation;
+            if (sealOnClose) StartCoroutine(SealAfterClose());
+        }
+
+        Debug.Log("Door Toggled: " + (isOpen ? "Open" : "Closed"));
+    }
+
+    // ----------------------------------------------------
+    // Public property สำหรับเช็คจากภายนอก
+    // ----------------------------------------------------
+    public bool IsOpen
+    {
+        get { return isOpen; }
+    }
+
+    IEnumerator SealAfterClose()
+    {
+        yield return new WaitForSeconds(timeToWaitBeforeSeal);
+        isPermanentlySealed = true;
+        Debug.Log(gameObject.name + " has been permanently sealed.");
+    }
+
+    // ----------------------------------------------------
+    // IInteractable
+    // ----------------------------------------------------
+    public void Interact(GameObject interactor)
+    {
+        if (isPermanentlySealed || isRotating) return;
+
+        if (isLocked)
+        {
+            Debug.Log(gameObject.name + " is LOCKED! Cannot open.");
+            return;
+        }
+
+        if (interactor != null && interactor.TryGetComponent(out InteractionHandler handler))
+            handler.interactionUI?.HidePrompt();
+
+        ToggleDoor();
     }
 
     public string GetInteractionText()
     {
-        // ข้อความจะเปลี่ยนตามสถานะประตู
+        if (isPermanentlySealed) return "";
+        if (isLocked) return "Door is Locked";
         return isOpen ? "Close Door" : "Open Door";
-    }
-    
-    // ----------------------------------------------------
-    // Logic การเปิด/ปิดประตูจริง
-    // ----------------------------------------------------
-    
-    public void ToggleDoor()
-    {
-        isOpen = !isOpen;
-        
-        if (isOpen)
-        {
-            // กำหนดเป้าหมายให้เป็น Rotation เปิด
-            targetRotation = initialRotation * Quaternion.Euler(openRotation);
-        }
-        else
-        {
-            // กำหนดเป้าหมายให้เป็น Rotation เริ่มต้น (ปิด)
-            targetRotation = initialRotation;
-        }
-        
-        Debug.Log("Door Toggled: " + (isOpen ? "Open" : "Closed"));
     }
 }

@@ -274,7 +274,7 @@ public class Gun : MonoBehaviour
             DoorController door = hit.collider.GetComponent<DoorController>();
             if (door != null)
             {
-                door.ToggleDoor();
+                door.Interact(gameObject);
                 return;
             }
         }

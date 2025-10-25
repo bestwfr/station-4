@@ -1,11 +1,13 @@
 using UnityEngine;
 
-// สัญญาสำหรับวัตถุที่สามารถโต้ตอบได้
+// **********************************************
+// สร้างเป็นไฟล์ชื่อ IInteractable.cs
+// **********************************************
 public interface IInteractable
 {
-    // เมธอดที่ Interactor จะเรียกเมื่อผู้เล่นกดปุ่ม E
-    void Interact(Gun interactor); 
-    
-    // เมธอดสำหรับแสดงข้อความที่หน้าจอ (เช่น "Pickup Ammo")
-    string GetInteractionText();
+    // เมธอดที่ Gun.cs จะเรียกเมื่อผู้เล่นกด 'E'
+    void Interact(GameObject interactor); 
+
+    // เมธอดสำหรับดึงข้อความที่จะแสดงใน InteractionUI
+    string GetInteractionText(); 
 }

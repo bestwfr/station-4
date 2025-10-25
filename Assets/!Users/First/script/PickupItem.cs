@@ -2,19 +2,13 @@ using UnityEngine;
 
 public class PickupItem : MonoBehaviour, IInteractable
 {
-    [Tooltip("ชื่อของไอเท็มนี้สำหรับแสดงบน UI")]
     public string itemDisplayName = "Key";
 
-    // 💡 แก้ไข: เพิ่มพารามิเตอร์ (Gun interactor) เพื่อให้ตรงกับ IInteractable
-    public void Interact(Gun interactor) 
+    public void Interact(GameObject interactor)
     {
-        Debug.Log("Picked up: " + itemDisplayName + " by " + interactor.gameObject.name);
-        
-        // 🚨 หมายเหตุ: ถ้านี่คือ Item ธรรมดาที่ไม่ใช่กระสุน
-        // คุณอาจจะต้องเรียกเมธอดบนตัว Player แทนที่จะเป็น Gun
-        // เช่น interactor.GetComponentInParent<PlayerInventory>().AddItem(itemDisplayName);
-        
-        // ท้าลายวัตถุนี้เพื่อแสดงว่าถูกเก็บไปแล้ว
+        Debug.Log("Picked up: " + itemDisplayName + " by " + interactor.name);
+        // เพิ่มไอเท็มใน Inventory ของ Player ที่ interactor.GetComponent<PlayerInventory>()
+
         Destroy(gameObject);
     }
 
