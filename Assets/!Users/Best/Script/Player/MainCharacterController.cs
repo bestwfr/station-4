@@ -47,6 +47,7 @@ namespace KinematicCharacterController
     public class MainCharacterController : MonoBehaviour, ICharacterController
     {
         public KinematicCharacterMotor Motor;
+        public CharacterCamera camera;
 
         [Header("Stable Movement")]
         public float MaxStableMoveSpeed = 5f;
@@ -110,6 +111,8 @@ namespace KinematicCharacterController
         private float _targetCapsuleHeight;
         private float _currentCapsuleHeight;
         private float _standingCapsuleHeight;
+        
+        private Vector3 _lastFrameVelocity = Vector3.zero; // <-- NEW VARIABLE
         
         [field: SerializeField,ReadOnly] public bool IsCrouching { get; private set; }
         [field: SerializeField,ReadOnly] public bool IsSprinting { get; private set; }
@@ -373,6 +376,8 @@ namespace KinematicCharacterController
         /// </summary>
         public void UpdateVelocity(ref Vector3 currentVelocity, float deltaTime)
         {
+            _lastFrameVelocity = currentVelocity;
+            
             switch (CurrentCharacterState)
             {
                 case CharacterState.Default:
@@ -467,6 +472,11 @@ namespace KinematicCharacterController
                                 _jumpRequested = false;
                                 _jumpConsumed = true;
                                 _jumpedThisFrame = true;
+                                
+                                if (camera != null)
+                                {
+                                    camera.OnCharacterJump();
+                                }
                             }
                         }
 
@@ -602,11 +612,11 @@ namespace KinematicCharacterController
         public void PostGroundingUpdate(float deltaTime)
         {
             // Handle landing and leaving ground
-            if (Motor.GroundingStatus.IsStableOnGround && !Motor.LastGroundingStatus.IsStableOnGround)
+            if (Motor.GroundingStatus.FoundAnyGround && !Motor.LastGroundingStatus.FoundAnyGround)
             {
                 OnLanded();
             }
-            else if (!Motor.GroundingStatus.IsStableOnGround && Motor.LastGroundingStatus.IsStableOnGround)
+            else if (!Motor.GroundingStatus.FoundAnyGround && Motor.LastGroundingStatus.FoundAnyGround)
             {
                 OnLeaveStableGround();
             }
@@ -653,6 +663,26 @@ namespace KinematicCharacterController
 
         protected void OnLanded()
         {
+            Vector3 verticalVelocityVector = Vector3.Project(_lastFrameVelocity, Motor.CharacterUp);
+            
+            float fallSpeed = verticalVelocityVector.magnitude; 
+            
+            if (Vector3.Dot(_lastFrameVelocity, Motor.CharacterUp) > 0f)
+            {
+                // If moving upward, the fall speed is zero.
+                fallSpeed = 0f;
+            }
+
+            // --- 2. Check for Minimum Trigger Speed (for debugging, set this low) ---
+            float minTriggerSpeed = 0.05f; // Set this very low for testing!
+            
+
+            if (fallSpeed < minTriggerSpeed)
+            {
+                return; 
+            }
+            
+            camera.OnCharacterLand(fallSpeed);
         }
 
         protected void OnLeaveStableGround()

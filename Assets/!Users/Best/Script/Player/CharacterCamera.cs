@@ -2,22 +2,39 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace KinematicCharacterController
 {
     public class CharacterCamera : MonoBehaviour
     {
-        [Header("Dependencies")]
-        // Drag your MainCharacterController here in the Inspector
+        private const float MaxSafeFallSpeed = 15.0f; 
+        
+        [Header("Dependencies")] 
         public MainCharacterController CharacterController;
+        public CharacterSoundSystem characterSoundSystem;
 
         [Header("Framing")] public Camera Camera;
         public Vector2 FollowPointFraming = new Vector2(0f, 0f);
         public float FollowingSharpness = 10000f;
+
+        [Header("Crouching")] public float CrouchVerticalOffset = -0.7f; // How much lower the camera should be
+        public float CrouchTransitionSpeed = 12f;
+
+        [Header("Landing Impact")]
+        public float LandImpactMagnitude = -0.5f; // How much the camera dips (negative for down)
+        public float LandImpactDuration = 0.15f; // Duration of the initial impact/dip
+        public float LandImpactDecaySpeed = 10f; // Speed at which the effect fades out
+        private float _landImpactOffset = 0f; // Current vertical offset from impact
+        private float _landImpactTimer = 0f; // Timer to track the initial phase// Speed of the smooth transition
         
-        [Header("Crouching")] 
-        public float CrouchVerticalOffset = -0.7f; // How much lower the camera should be
-        public float CrouchTransitionSpeed = 12f;  // Speed of the smooth transition
+        [Header("Jumping Lift")] 
+        public float JumpLiftMagnitude = 0.2f;    // How much the camera lifts (positive for up)
+        public float JumpLiftDuration = 0.1f;     // Duration of the initial lift
+        public float JumpLiftDecaySpeed = 15f;    // Speed at which the lift fades out
+        private float _jumpImpactOffset = 0f;     // Current vertical offset from lift
+        private float _jumpImpactTimer = 0f;      // Timer to track the initial phase
+        private float _targetJumpOffset = 0f;
 
         [Header("Distance")] public float DefaultDistance = 6f;
         public float MinDistance = 0f;
@@ -46,15 +63,15 @@ namespace KinematicCharacterController
         public float lateralMultiplier = 0.6f;
         public float swaySmooth = 8f;
 
-        [Header("Tired Bobbing")] 
-        public float TiredBobFrequency = 0.8f;
+        [Header("Tired Bobbing")] public float TiredBobFrequency = 0.8f;
         public float TiredBobAmplitude = 0.1f;
         public float TiredExitSmoothing = 2.0f;
-        
+
         private float _currentLateral;
         private float _bobbingTimer;
         private float _currentBobFrequency;
         private float _currentBobAmplitude;
+        private float _lastBobPhase = 0f;
 
         public Transform Transform { get; private set; }
         public Transform FollowTransform { get; private set; }
@@ -73,8 +90,9 @@ namespace KinematicCharacterController
 
         private Vector3 _lastFollowPos;
         private float _smoothedSpeed;
-        
+
         private float _targetVerticalOffset = 0f;
+        private float _targetLandOffset = 0f;
 
         private const int MaxObstructions = 32;
 
@@ -99,7 +117,7 @@ namespace KinematicCharacterController
             _currentBobFrequency = bobFrequency;
             _currentBobAmplitude = bobAmplitude;
         }
-        
+
         public void SetCrouchOffset(bool isCrouching)
         {
             if (isCrouching)
@@ -218,88 +236,163 @@ namespace KinematicCharacterController
                 // --- 1. Apply Smooth Vertical Offset (Crouching) ---
                 // Smoothly move the current framing Y value towards the target offset
                 FollowPointFraming.y = Mathf.Lerp(
-                    FollowPointFraming.y, 
-                    _targetVerticalOffset, 
+                    FollowPointFraming.y,
+                    _targetVerticalOffset,
                     1f - Mathf.Exp(-CrouchTransitionSpeed * deltaTime)
                 );
 
                 // Define the **Actual Pivot Point** where the camera should orbit.
-                // This combines the character's smoothed position with the vertical framing/crouch offset.
                 Vector3 orbitPivotPoint = _currentFollowPosition;
-                orbitPivotPoint += FollowTransform.up * FollowPointFraming.y; 
-                orbitPivotPoint += FollowTransform.right * FollowPointFraming.x; 
-                
+                orbitPivotPoint += FollowTransform.up * FollowPointFraming.y;
+                orbitPivotPoint += FollowTransform.right * FollowPointFraming.x;
+
                 // Find the smoothed camera orbit position.
-                // This now pulls the camera back from the correctly offset pivot point.
                 Vector3 targetPosition =
                     orbitPivotPoint - ((targetRotation * Vector3.forward) * _currentDistance);
 
-                // Apply position
-                Transform.position = targetPosition;
-
-                // --- ENHANCED SMOOTH HEAD BOB & SWAY (No Jiggle) ---
-                if (enableBobbing && FollowTransform != null && CharacterController != null)
+                // --- NEW LAND IMPACT UPDATE (Smoothed) ---
                 {
-                    // 1️⃣ Calculate speed and smooth it
-                    float speed = ((FollowTransform.position - _lastFollowPos) / deltaTime).magnitude;
-                    _lastFollowPos = FollowTransform.position;
-                    _smoothedSpeed = Mathf.Lerp(_smoothedSpeed, speed, deltaTime * 8f);
+                    // A. Transition toward the target offset (This makes the DIVE smooth)
+                    // Use a small fixed smoothing value (e.g., 20f) to make the impact feel quick but not instant.
+                    float onsetSharpness = 20f;
+                    _landImpactOffset = Mathf.Lerp(_landImpactOffset, _targetLandOffset,
+                        1f - Mathf.Exp(-onsetSharpness * deltaTime));
 
-                    // 2️⃣ Determine target bob parameters
-                    float targetFrequency = bobFrequency;
-                    float targetAmplitude = bobAmplitude;
-                    float transitionSmoothing = 8f;
-
-                    if (_smoothedSpeed > 0.1f) // moving
+                    // B. Handle the decay phase
+                    if (_landImpactTimer > 0f)
                     {
-                        if (CharacterController.IsTired)
-                        {
-                            // Tired walking: higher bob frequency + higher amplitude for heavy steps
-                            targetFrequency = TiredBobFrequency; // fast shallow bob
-                            targetAmplitude = TiredBobAmplitude * 1.5f; // boost amplitude for walking
-                            transitionSmoothing = 4f; // smoother transition to tired state
-                        }
-                        else if (CharacterController.IsSprinting)
-                        {
-                            targetFrequency = bobFrequency * 1.5f;
-                            targetAmplitude = bobAmplitude * 1.5f;
-                        }
-
-                        _currentBobFrequency = Mathf.Lerp(_currentBobFrequency, targetFrequency,
-                            deltaTime * transitionSmoothing);
-                        _currentBobAmplitude = Mathf.Lerp(_currentBobAmplitude, targetAmplitude,
-                            deltaTime * transitionSmoothing);
-
-                        // Timer advances faster while moving
-                        _bobbingTimer += deltaTime * _currentBobFrequency *
-                                         Mathf.Clamp01(_smoothedSpeed / bobSpeedReference);
+                        // Still in the initial, strong phase
+                        _landImpactTimer -= deltaTime;
                     }
-                    else // standing still
+                    else
                     {
-                        // Slow decay to subtle standing bob
-                        float stillAmplitude = 0.008f; // subtle breathing
-                        float stillFrequency = 0.7f; // slow breathing pace
-                        float stopDecaySpeed = 1.5f; // slower fade to reduce snappy feel
-
-                        _currentBobAmplitude =
-                            Mathf.Lerp(_currentBobAmplitude, stillAmplitude, deltaTime * stopDecaySpeed);
-                        _currentBobFrequency =
-                            Mathf.Lerp(_currentBobFrequency, stillFrequency, deltaTime * stopDecaySpeed);
-
-                        // Slowly advance timer to keep smooth movement
-                        _bobbingTimer += deltaTime * _currentBobFrequency * 0.5f;
+                        // Decay phase: Smoothly reset the target back to zero.
+                        // This makes the "bouncing back up" smooth.
+                        _targetLandOffset = Mathf.Lerp(_targetLandOffset, 0f,
+                            1f - Mathf.Exp(-LandImpactDecaySpeed * deltaTime));
                     }
 
-                    // 3️⃣ Apply offsets
-                    float verticalOffset = Mathf.Sin(_bobbingTimer * Mathf.PI * 2f) * _currentBobAmplitude;
-                    float swayPhase = _bobbingTimer * Mathf.PI * 2f * 0.5f + Mathf.PI / 2f;
-                    float targetLateral = Mathf.Sin(swayPhase) * (_currentBobAmplitude * lateralMultiplier);
-                    _currentLateral = Mathf.Lerp(_currentLateral, targetLateral, deltaTime * swaySmooth);
+                    // --- 2. Apply Position and Land Impact ---
+                    // Apply position to the camera **BEFORE** head bob
+                    Transform.position = targetPosition;
 
-                    Transform.position += Transform.up * verticalOffset;
-                    Transform.position += Transform.right * _currentLateral;
+                    // Apply the current Land Impact offset
+                    Transform.position += Transform.up * _landImpactOffset;
+
+                    ApplyHeadBobbing(deltaTime);
                 }
             }
+        }
+
+        private void ApplyHeadBobbing(float deltaTime)
+        {
+            if (enableBobbing && FollowTransform != null && CharacterController != null &&
+                CharacterController.Motor.GroundingStatus.FoundAnyGround)
+            {
+                // 1️⃣ Calculate speed and smooth it
+                float speed = ((FollowTransform.position - _lastFollowPos) / deltaTime).magnitude;
+                _lastFollowPos = FollowTransform.position;
+                _smoothedSpeed = Mathf.Lerp(_smoothedSpeed, speed, deltaTime * 8f);
+
+                // 2️⃣ Determine target bob parameters
+                float targetFrequency = bobFrequency;
+                float targetAmplitude = bobAmplitude;
+                float transitionSmoothing = 8f;
+
+                if (_smoothedSpeed > 0.1f) // moving
+                {
+                    if (CharacterController.IsTired)
+                    {
+                        // Tired walking: higher bob frequency + higher amplitude for heavy steps
+                        targetFrequency = TiredBobFrequency; // fast shallow bob
+                        targetAmplitude = TiredBobAmplitude * 1.5f; // boost amplitude for walking
+                        transitionSmoothing = 4f; // smoother transition to tired state
+                    }
+                    else if (CharacterController.IsSprinting)
+                    {
+                        targetFrequency = bobFrequency * 1.5f;
+                        targetAmplitude = bobAmplitude * 1.5f;
+                    }
+
+                    _currentBobFrequency = Mathf.Lerp(_currentBobFrequency, targetFrequency,
+                        deltaTime * transitionSmoothing);
+                    _currentBobAmplitude = Mathf.Lerp(_currentBobAmplitude, targetAmplitude,
+                        deltaTime * transitionSmoothing);
+
+                    // Timer advances faster while moving
+                    _bobbingTimer += deltaTime * _currentBobFrequency *
+                                     Mathf.Clamp01(_smoothedSpeed / bobSpeedReference);
+
+                    float newPhase = Mathf.Repeat(_bobbingTimer, 1f);
+
+                    float volumePercent = Mathf.InverseLerp(CharacterController.MaxStableCrouchSpeed,
+                        CharacterController.MaxStableSprintSpeed, _smoothedSpeed);
+
+                    float stepVolume = Mathf.Lerp(0.4f, 1.0f, volumePercent);
+                    stepVolume = Mathf.Clamp(stepVolume, 0.4f, 1.0f);
+
+                    if (newPhase < _lastBobPhase)
+                    {
+                        characterSoundSystem.StartFootStep(stepVolume);
+                    }
+
+                    _lastBobPhase = newPhase;
+                }
+                else // standing still
+                {
+                    // Slow decay to subtle standing bob
+                    float stillAmplitude = 0.008f; // subtle breathing
+                    float stillFrequency = 0.7f; // slow breathing pace
+                    float stopDecaySpeed = 1.5f; // slower fade to reduce snappy feel
+
+                    _currentBobAmplitude =
+                        Mathf.Lerp(_currentBobAmplitude, stillAmplitude, deltaTime * stopDecaySpeed);
+                    _currentBobFrequency =
+                        Mathf.Lerp(_currentBobFrequency, stillFrequency, deltaTime * stopDecaySpeed);
+
+                    // Slowly advance timer to keep smooth movement
+                    _bobbingTimer += deltaTime * _currentBobFrequency * 0.5f;
+                }
+
+                // 3️⃣ Apply offsets
+                float verticalOffset = Mathf.Sin(_bobbingTimer * Mathf.PI * 2f) * _currentBobAmplitude;
+                float swayPhase = _bobbingTimer * Mathf.PI * 2f * 0.5f + Mathf.PI / 2f;
+                float targetLateral = Mathf.Sin(swayPhase) * (_currentBobAmplitude * lateralMultiplier);
+                _currentLateral = Mathf.Lerp(_currentLateral, targetLateral, deltaTime * swaySmooth);
+
+                Transform.position += Transform.up * verticalOffset;
+                Transform.position += Transform.right * _currentLateral;
+            }
+        }
+        public void OnCharacterLand(float fallSpeed) 
+        {
+            float impactIntensity = Mathf.Clamp01(fallSpeed / MaxSafeFallSpeed); 
+            
+
+            // Set the target offset based on the intensity
+            _targetLandOffset = LandImpactMagnitude * impactIntensity; 
+
+            // Only proceed if we had a significant impact
+            if (impactIntensity > 0.05f) 
+            {
+                _landImpactTimer = LandImpactDuration;
+                characterSoundSystem.PlayLandSound(impactIntensity);
+            }
+            else
+            {
+                // If intensity is very low, ensure the target offset is reset quickly
+                _targetLandOffset = 0f;
+            }
+        }
+        
+        public void OnCharacterJump()
+        {
+            Debug.Log("Jump Lift Triggered");
+            _targetJumpOffset = JumpLiftMagnitude; // Set the target to the full lift magnitude
+            _jumpImpactTimer = JumpLiftDuration;
+            
+            // Play a sound immediately on jump
+            characterSoundSystem.PlayJumpSound();
         }
     }
 }
