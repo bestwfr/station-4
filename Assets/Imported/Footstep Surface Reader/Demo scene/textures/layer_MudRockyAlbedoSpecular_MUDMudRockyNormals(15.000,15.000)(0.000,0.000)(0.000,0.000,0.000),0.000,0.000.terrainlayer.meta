@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: d3b0e3cbbc81b1d4c803fc7d03a846f4
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 8574412962073106934
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 143435
+  packageName: '[FSR]-Footstep Surface Reader'
+  packageVersion: 1.0
+  assetPath: Assets/Footstep Surface Reader/Demo scene/textures/layer_MudRockyAlbedoSpecular_MUDMudRockyNormals(15.000,15.000)(0.000,0.000)(0.000,0.000,0.000),0.000,0.000.terrainlayer
+  uploadId: 616584

@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 6529fd0188ebabd4981d1eb48cb266b7
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 143435
+  packageName: '[FSR]-Footstep Surface Reader'
+  packageVersion: 1.0
+  assetPath: Assets/Footstep Surface Reader/Demo scene/PlayerMovement.cs
+  uploadId: 616584

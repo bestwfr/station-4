@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: a6ad8fe7715a6be4d88ceb1d4dc7f26f
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 8574412962073106934
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 143435
+  packageName: '[FSR]-Footstep Surface Reader'
+  packageVersion: 1.0
+  assetPath: Assets/Footstep Surface Reader/Demo scene/textures/layer_SandAlbedo_SAND(15.000,15.000)(0.000,0.000)(0.000,0.000,0.000),0.000,0.000.terrainlayer
+  uploadId: 616584

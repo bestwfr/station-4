@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 437325b390d9479448a4783eeae48e4d
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 15600000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 143435
+  packageName: '[FSR]-Footstep Surface Reader'
+  packageVersion: 1.0
+  assetPath: Assets/Footstep Surface Reader/Demo scene/New Terrain.asset
+  uploadId: 616584

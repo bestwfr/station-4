@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 313181bed46c3a541ad414ef6ee2d096
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 143435
+  packageName: '[FSR]-Footstep Surface Reader'
+  packageVersion: 1.0
+  assetPath: Assets/Footstep Surface Reader/Scripts/FSR_Data.cs
+  uploadId: 616584

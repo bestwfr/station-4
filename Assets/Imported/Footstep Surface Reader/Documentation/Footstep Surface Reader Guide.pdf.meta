@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 40e154dba0d4e4545b08e88a83f1a998
+DefaultImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 143435
+  packageName: '[FSR]-Footstep Surface Reader'
+  packageVersion: 1.0
+  assetPath: Assets/Footstep Surface Reader/Documentation/Footstep Surface Reader
+    Guide.pdf
+  uploadId: 616584
