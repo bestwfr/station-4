@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 9059695621839725696}
   - component: {fileID: 3011599803750742262}
   - component: {fileID: 1560652900044010650}
+  - component: {fileID: -2819457236631354777}
   m_Layer: 0
   m_Name: mediun rock 3
   m_TagString: Untagged
@@ -89,3 +90,26 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!136 &-2819457236631354777
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5778462555864591124}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 0.011651009
+  m_Height: 0.027345749
+  m_Direction: 1
+  m_Center: {x: 0.0012081907, y: 0.0015879647, z: -0.0012712429}
