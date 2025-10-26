@@ -32,7 +32,7 @@ public class RadioTracker : MonoBehaviour
     [Tooltip("ลาก Material 'Neon_Red_Off' มาใส่")]
     public Material materialOff;
 
-    private bool isRadioOn = false; // <<<--- เริ่มมาเป็น false (ปิด)
+    private bool isRadioOn = true; // <<<--- เริ่มมาเป็น false (ปิด)
     private bool isAlertPlaying = false;
 
     void Start()
@@ -56,15 +56,8 @@ public class RadioTracker : MonoBehaviour
         {
             isRadioOn = false;
         }
-
-        // (เริ่มมา isRadioOn เป็น false... ถูกต้อง)
-        if (isRadioOn)
-        {
-            staticSource.Play();
-            whisperSource.Play();
-        }
         
-        UpdateIndicatorLight(); // <<<--- อัปเดตไฟตอนเริ่มเกม (ให้เป็นสีแดง)
+        UpdateIndicatorLight();
     }
 
     void Update()
