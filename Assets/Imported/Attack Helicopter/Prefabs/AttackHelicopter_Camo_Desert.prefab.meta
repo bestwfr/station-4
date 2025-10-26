@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 88daad6b40b84364b9c7eac6143afda3
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 43861
+  packageName: Attack Helicopter
+  packageVersion: 2.0
+  assetPath: Assets/Attack Helicopter/Prefabs/AttackHelicopter_Camo_Desert.prefab
+  uploadId: 372009
