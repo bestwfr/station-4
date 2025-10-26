@@ -47,12 +47,20 @@ public class EquipmentManager : MonoBehaviour
             {
                 EquipItem(EquippedItem.Flashlight);
             }
+            else
+            {
+                EquipItem(EquippedItem.Radio);
+            }
         }
         else if (scroll < 0f) // เลื่อนลง
         {
             if (currentItem != EquippedItem.Radio)
             {
                 EquipItem(EquippedItem.Radio);
+            }
+            else
+            {
+                EquipItem(EquippedItem.Flashlight);
             }
         }
 

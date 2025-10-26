@@ -6,11 +6,13 @@ using System.Collections.Generic;
 // 1. Define the possible states for the enemy
 public enum EnemyState
 {
-    Stalk,       // NEW DEFAULT: Follows player from a calculated distance.
+    Stalk,       // Default state: Follows player from a calculated distance.
     Chase,
-    Investigate, // Aggressive, multi-point search (high urgency)
+    Investigate, // Aggressive, multi-point check (high urgency)
     Patrol,      // Small-radius patrolling (on edge/post-investigation persistence)
-    Search       // Cautious move to a single point, then wait/look (low suspicion)
+    Search,      // Cautious move to a single point, then wait/look (low suspicion)
+    Flee,        // Runs away from the player/threat (high speed)
+    Retreat      // Slowly backs away while facing the player (slow speed, light vulnerability)
 }
 
 [RequireComponent(typeof(NavMeshAgent))]
@@ -18,19 +20,32 @@ public class EnemyController : MonoBehaviour
 {
     [Header("Dependencies")]
     private NavMeshAgent agent;
+    public Animator animator; // <--- This reference is now used for animations!
 
     [Header("Movement Configuration")]
     public float chaseSpeed = 5f;
-    public float investigateSpeed = 4f; // Increased speed for urgency
-    public float patrolSpeed = 1.5f; // Slower, more deliberate patrol
+    public float investigateSpeed = 4f; 
+    public float patrolSpeed = 1.5f; 
     
     [Header("Stalk Configuration")]
     [Tooltip("The speed used when stalking.")]
     public float stalkSpeed = 1.0f;
-    [Tooltip("The desired distance to maintain from the player.")]
     public float stalkDistance = 25f;
-    [Tooltip("How often (in seconds) the enemy recalculates its stalking position.")]
     public float stalkPathRecalculateDelay = 3.0f;
+    
+    [Header("Flee Configuration")]
+    // This is set high (7f) to make the Flee state look scared and panicked.
+    public float fleeSpeed = 7f; 
+    public float fleeDistance = 50f;
+    public float fleeDuration = 8f; // Also used as Retreat Timeout
+    
+    [Header("Retreat Configuration")]
+    [Tooltip("How long the enemy is stunned before backing away.")]
+    public float retreatStunDuration = 1.5f;
+    [Tooltip("Speed when walking backward.")]
+    public float retreatSpeed = 0.5f;
+    [Tooltip("Target distance to retreat to.")]
+    public float retreatDistance = 10f; // Adjusted from 15f to 10f
     
     public float patrolRadius = 10f; 
     public int investigatePointsCount = 4; 
@@ -39,29 +54,49 @@ public class EnemyController : MonoBehaviour
     [Header("Current State")]
     public EnemyState currentState = EnemyState.Stalk;
     
-    private Vector3 currentPatrolCenter; 
+    public Vector3 currentPatrolCenter; 
     private Queue<Vector3> investigationPoints = new Queue<Vector3>(); 
     private float investigationTimer = 0f;
-    private float stalkTimer = 0f; // Timer for stalking path recalculation
+    private float stalkTimer = 0f; 
+    private float fleeTimer = 0f;
+    private float retreatTimer = 0f;
+    private Vector3 initialRetreatPosition; 
+    private bool retreatDestinationSet = false; 
     
     [Tooltip("The actual target Transform (set by EnemyAI when target is fully known)")]
-    public Transform target; // Public field for the target's Transform
+    public Transform target; 
 
     private void Awake()
     {
         agent = GetComponent<NavMeshAgent>();
         
-        // Initial state setup
         if (currentState == EnemyState.Stalk)
         {
             agent.speed = stalkSpeed;
         }
+        
+        agent.updateRotation = false;
+    }
+    
+    // --- State Locking Helper ---
+
+    /// <summary>
+    /// Checks if the current state is Flee or Retreat, which block external state changes.
+    /// </summary>
+    private bool IsVulnerableOrFleeing()
+    {
+        return currentState == EnemyState.Flee || currentState == EnemyState.Retreat;
     }
 
+
     // --- Public Commands from EnemyAI ---
+    // (StartChase, StartInvestigate, StartSearch, StartPatrol, StartStalk, StartFlee, StartRetreat remain unchanged)
+    // ... [Omitted for brevity]
 
     public void StartChase()
     {
+        if (IsVulnerableOrFleeing()) return; // IGNORE command if Fleeing/Retreating
+        
         if (target != null)
         {
             ChangeState(EnemyState.Chase);
@@ -70,6 +105,8 @@ public class EnemyController : MonoBehaviour
     
     public void StartInvestigate(Vector3 location)
     {
+        if (IsVulnerableOrFleeing()) return; // IGNORE command if Fleeing/Retreating
+
         if (currentState != EnemyState.Investigate || Vector3.Distance(currentPatrolCenter, location) > 1f)
         {
             currentPatrolCenter = location;
@@ -80,6 +117,8 @@ public class EnemyController : MonoBehaviour
 
     public void StartSearch(Vector3 location)
     {
+        if (IsVulnerableOrFleeing()) return; // IGNORE command if Fleeing/Retreating
+
         if (currentState != EnemyState.Search || Vector3.Distance(currentPatrolCenter, location) > 1f)
         {
             currentPatrolCenter = location;
@@ -89,41 +128,88 @@ public class EnemyController : MonoBehaviour
     
     public void StartPatrol(Vector3 center)
     {
+        if (IsVulnerableOrFleeing()) return; // IGNORE command if Fleeing/Retreating
+        
         currentPatrolCenter = center;
         ChangeState(EnemyState.Patrol);
     }
 
-    /// <summary>
-    /// Starts the Stalk state (the new default neutral behavior).
-    /// </summary>
     public void StartStalk()
     {
+        if (IsVulnerableOrFleeing()) return; // IGNORE command if Fleeing/Retreating
+
         ChangeState(EnemyState.Stalk);
     }
+    
+    public void StartFlee()
+    {
+        // Flee is the only state that can interrupt anything else.
+        ChangeState(EnemyState.Flee);
+    }
+    
+    public void StartRetreat()
+    {
+        // Allow Retreat to interrupt any non-Flee state.
+        if (currentState != EnemyState.Flee)
+        {
+             ChangeState(EnemyState.Retreat);
+        }
+    }
+
 
     // --- Core Execution Loop ---
     private void Update()
     {
+        // Must check if target is null for states that rely on it
+        if (target == null && (currentState == EnemyState.Chase || currentState == EnemyState.Stalk || currentState == EnemyState.Retreat))
+        {
+            // Safety transition: The enemy can always transition to Stalk internally 
+            // if its primary target vanishes (which is likely if it was in Retreat or Chase).
+            ChangeState(EnemyState.Stalk); 
+        }
+        
+        // Handle enemy rotation for non-retreat states
+        bool shouldRotateBasedOnVelocity = 
+            currentState != EnemyState.Retreat && agent.velocity.sqrMagnitude > 0.01f;
+
+        if (shouldRotateBasedOnVelocity)
+        {
+            Quaternion lookRotation = Quaternion.LookRotation(agent.velocity.normalized);
+            transform.rotation = Quaternion.Slerp(transform.rotation, lookRotation, Time.deltaTime * 10f);
+        }
+        
+        // --- ANIMATION: Set Speed parameter for Walking/Running (All states EXCEPT Retreat) ---
+        if (animator != null && currentState != EnemyState.Retreat)
+        {
+            // Calculate speed relative to the agent's current maximum allowed speed (for normalization)
+            // Running (Chase/Flee) will have Speed closer to 1.0, Walking will be lower.
+            float targetSpeed = agent.velocity.magnitude;
+            animator.SetFloat("Speed", targetSpeed);
+        }
+        // ------------------------------------------------------------------------------------
+
         switch (currentState)
         {
             case EnemyState.Stalk:
                 StalkState();
                 break;
-
             case EnemyState.Chase:
                 ChaseState();
                 break;
-            
             case EnemyState.Investigate:
                 InvestigateState();
                 break;
-
             case EnemyState.Patrol:
                 PatrolState();
                 break;
-            
             case EnemyState.Search:
                 SearchState();
+                break;
+            case EnemyState.Flee:
+                FleeState();
+                break;
+            case EnemyState.Retreat: 
+                RetreatState();
                 break;
         }
     }
@@ -144,76 +230,217 @@ public class EnemyController : MonoBehaviour
         return false;
     }
     
-    // --- Stalking Logic ---
+    // --- State Logic Functions ---
+
     private void StalkState()
     {
-        // Action: Slowly track the player from a distance
         stalkTimer += Time.deltaTime;
-
-        // Recalculate the stalking destination periodically or if we've arrived
         if (stalkTimer >= stalkPathRecalculateDelay || (agent.remainingDistance < 1f && !agent.pathPending))
         {
             SetNewStalkDestination();
-            stalkTimer = 0f; // Reset timer after setting new path
+            stalkTimer = 0f; 
         }
     }
     
     private void SetNewStalkDestination()
     {
-        if (target == null) return; // Cannot stalk without a target
+        if (target == null) return; 
 
         Vector3 playerPos = target.position;
         Vector3 enemyPos = transform.position;
         float distance = Vector3.Distance(playerPos, enemyPos);
         
         Vector3 desiredDirection;
-        
-        // 1. Determine a direction to move based on current distance
         if (distance < stalkDistance * 0.9f)
         {
-            // Too close, move away (using the inverse direction)
             desiredDirection = (enemyPos - playerPos).normalized;
         }
         else if (distance > stalkDistance * 1.5f)
         {
-            // Too far, move towards (close the gap faster)
             desiredDirection = (playerPos - enemyPos).normalized;
         }
         else 
         {
-            // Maintain general stalking distance, slightly circle the player
             float angle = Random.Range(0f, 360f);
             desiredDirection = new Vector3(Mathf.Sin(angle), 0, Mathf.Cos(angle));
         }
 
-        // 2. Calculate the target point offset by the stalk distance
         float finalStalkDistance = stalkDistance + Random.Range(-5f, 5f);
         Vector3 targetPoint = playerPos + desiredDirection.normalized * finalStalkDistance;
 
         NavMeshHit hit;
-        // 3. Sample the NavMesh to find a valid point near the calculated spot
         if (NavMesh.SamplePosition(targetPoint, out hit, stalkDistance * 2f, NavMesh.AllAreas))
         {
             agent.SetDestination(hit.position);
         }
     }
-    // -----------------------
+
+    private void ChaseState()
+    {
+        
+        
+        if (target != null)
+        {
+            agent.SetDestination(target.position);
+        }
+    }
+    
+    private void FleeState()
+    {
+        fleeTimer -= Time.deltaTime;
+        
+        // 1. EXIT CONDITION: Flee timer has expired.
+        if (fleeTimer <= 0f)
+        {
+            if (currentPatrolCenter != Vector3.zero) 
+            {
+                ChangeState(EnemyState.Investigate); 
+            }
+            else
+            {
+                ChangeState(EnemyState.Stalk);
+            }
+            return;
+        }
+
+        // 2. RECALCULATE DESTINATION: If we are close to the target destination OR path is invalid,
+        // and we have enough time left to reach a new point, set a new destination.
+        float timeToNextMove = 1f; // Minimum time needed to justify setting a new point
+        if (fleeTimer > timeToNextMove && !agent.pathPending && agent.remainingDistance < 1f)
+        {
+            SetFleeDestination();
+        }
+        
+        // Secondary check: If the target (player) is too close, immediately reset destination 
+        // to ensure we keep running away.
+        if (target != null)
+        {
+            if (Vector3.Distance(transform.position, target.position) < fleeDistance / 3f)
+            {
+                SetFleeDestination();
+            }
+        }
+    }
+    
+    private void SetFleeDestination()
+    {
+        Vector3 centerOfThreat = target != null ? target.position : currentPatrolCenter;
+        // The direction *away* from the threat
+        Vector3 fleeDirection = (transform.position - centerOfThreat).normalized; 
+        Vector3 targetPoint = transform.position + fleeDirection * fleeDistance; 
+
+        NavMeshHit hit;
+        if (NavMesh.SamplePosition(targetPoint, out hit, fleeDistance, NavMesh.AllAreas))
+        {
+            agent.SetDestination(hit.position);
+        }
+        else
+        {
+            // If the calculated point is off-navmesh, try a random direction 
+            // just to keep the enemy moving until the timer expires.
+            SetDestinationToRandomPoint(transform.position, fleeDistance, fleeSpeed);
+        }
+    }
+
+    private void RetreatState()
+    {
+        // --- TIMEOUT EXIT LOGIC ---
+        if (retreatTimer >= fleeDuration * 2) 
+        {
+            Debug.Log("Retreat timed out! Forcing transition to Stalk.");
+            ChangeState(EnemyState.Stalk);
+            return;
+        }
+        // --------------------------
+        
+        retreatTimer += Time.deltaTime;
+
+        // Phase 1: Stand Still / Stun
+        if (retreatTimer < retreatStunDuration)
+        {
+            agent.isStopped = true;
+            
+            // --- ANIMATION: STUN/IDLE ---
+            if (animator != null)
+            {
+                // Play the face close animation during the stun
+                animator.CrossFade("face close", 0f);
+            }
+            
+            if (target != null)
+            {
+                Vector3 lookDirection = (target.position - transform.position).normalized;
+                Quaternion targetRotation = Quaternion.LookRotation(new Vector3(lookDirection.x, 0, lookDirection.z));
+                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * 5f);
+            }
+            return;
+        }
+
+        // Phase 2: Straight Back-Walk Retreat
+        agent.isStopped = false;
+        
+        // --- ANIMATION: BACKWARD WALK ---
+        if (animator != null)
+        {
+            // Play the backward walk animation after the stun is over
+            animator.CrossFade("face close walk backward", 0);
+        }
+        
+        // Keep facing the player 
+        if (target != null)
+        {
+            Vector3 lookDirection = (target.position - transform.position).normalized;
+            Quaternion targetRotation = Quaternion.LookRotation(new Vector3(lookDirection.x, 0, lookDirection.z));
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * 5f);
+        }
+
+        // 1. Set the destination once after stun phase
+        if (!retreatDestinationSet)
+        {
+            if (target == null)
+            {
+                ChangeState(EnemyState.Stalk);
+                return;
+            }
+
+            Vector3 targetDirection = (target.position - initialRetreatPosition).normalized;
+            Vector3 retreatDirection = -targetDirection;
+            Vector3 targetPoint = initialRetreatPosition + retreatDirection * retreatDistance;
+            
+            NavMeshHit hit;
+            if (NavMesh.SamplePosition(targetPoint, out hit, retreatDistance, NavMesh.AllAreas))
+            {
+                agent.SetDestination(hit.position);
+                retreatDestinationSet = true;
+            } 
+            else
+            {
+                // If destination fails, transition out
+                ChangeState(EnemyState.Stalk);
+                return;
+            }
+        }
+        
+        // 2. Check for successful retreat (either destination reached OR required distance covered)
+        if ((agent.remainingDistance < 0.5f && retreatDestinationSet) || 
+            Vector3.Distance(transform.position, initialRetreatPosition) >= retreatDistance)
+        {
+            ChangeState(EnemyState.Stalk);
+        }
+    }
 
     private void GenerateInvestigationPath(Vector3 center)
     {
         investigationPoints.Clear();
-        
-        // 1. Check the noise center first
         NavMeshHit centerHit;
         if (NavMesh.SamplePosition(center, out centerHit, 2f, NavMesh.AllAreas))
             investigationPoints.Enqueue(centerHit.position); 
         else
-            investigationPoints.Enqueue(center); // Fallback to raw position
+            investigationPoints.Enqueue(center); 
 
-        // 2. Generate remaining random points around the center
         for (int i = 0; i < investigatePointsCount - 1; i++)
         {
-            Vector3 randomPoint = center + Random.insideUnitSphere * 5f; // 5m radius search
+            Vector3 randomPoint = center + Random.insideUnitSphere * 5f; 
             NavMeshHit hit;
             if (NavMesh.SamplePosition(randomPoint, out hit, 5f, NavMesh.AllAreas))
             {
@@ -222,86 +449,60 @@ public class EnemyController : MonoBehaviour
         }
     }
     
-    // --- State Logic Functions ---
-
-    private void ChaseState()
-    {
-        // Chase requires a target and is updated every frame by setting the destination.
-        if (target != null)
-        {
-            agent.SetDestination(target.position);
-        }
-        else
-        {
-            // Target lost (shouldn't happen if EnemyAI is working, but safe fails)
-            StartStalk(); 
-        }
-    }
-
     private void InvestigateState()
     {
-        // 1. Check if we arrived at the current point
         if (!agent.pathPending && agent.remainingDistance < 0.5f)
         {
             if (investigationPoints.Count > 0)
             {
-                // 2. Move to the next point in the queue
                 Vector3 nextPoint = investigationPoints.Dequeue();
                 agent.SetDestination(nextPoint);
             }
             else
             {
-                // 3. All points checked, transition to a tight Patrol (Persistence!)
-                StartPatrol(currentPatrolCenter);
+                ChangeState(EnemyState.Patrol);
             }
         }
     }
     
     private void PatrolState()
     {
-        // Patrol is like Wander, but slower and focused on the last suspicion center
         if (!agent.pathPending && agent.remainingDistance < 0.5f)
         {
-            // Patrol around the center of suspicion
             if (!SetDestinationToRandomPoint(currentPatrolCenter, patrolRadius, patrolSpeed))
             {
-                 // If a valid patrol point can't be found, give up and stalk
-                 StartStalk();
+                 ChangeState(EnemyState.Stalk);
             }
             
-            // Increment timer to control how long the patrol lasts
             investigationTimer += Time.deltaTime;
             if (investigationTimer >= investigationDuration)
             {
-                StartStalk(); // Go back to stalking the player
+                ChangeState(EnemyState.Stalk);
             }
         }
     }
 
     private void SearchState()
     {
-        // Phase 1: Moving to the suspicion center
         if (agent.remainingDistance > 0.5f)
         {
             return;
         }
 
-        // Phase 2: Arrived, now looking around
         if (investigationTimer <= 0f)
         {
             agent.isStopped = true; 
         }
 
-        // Phase 3: Timer counting down
         investigationTimer += Time.deltaTime;
 
         if (investigationTimer >= investigationDuration)
         {
-            // Time's up, nothing found.
             agent.isStopped = false; 
-            StartStalk(); // Go back to stalking the player
+            ChangeState(EnemyState.Stalk);
         }
     }
+
 
     // --- State Transition Helper ---
 
@@ -309,39 +510,84 @@ public class EnemyController : MonoBehaviour
     {
         if (currentState == newState) return;
 
-        // Exit Logic for current state (Clean up)
+        // --- Exit Logic ---
+        // Ensure all timers/flags are reset when exiting a temporary state
         if (currentState == EnemyState.Investigate || currentState == EnemyState.Patrol || currentState == EnemyState.Search)
         {
             investigationTimer = 0f;
             investigationPoints.Clear();
-            agent.isStopped = false; // Ensure movement is re-enabled on exit
+            agent.isStopped = false; 
+        }
+        else if (currentState == EnemyState.Flee)
+        {
+            fleeTimer = 0f;
+            agent.isStopped = false;
+        }
+        else if (currentState == EnemyState.Retreat)
+        {
+            retreatTimer = 0f;
+            agent.isStopped = false;
+            retreatDestinationSet = false;
+            
+            // --- ANIMATION EXIT: Reset Speed to 0 when leaving Retreat to avoid glitches ---
+            if (animator != null)
+            {
+                animator.SetFloat("Speed", 0f);
+                animator.CrossFade("Blend Tree", 0.1f); 
+            }
         }
 
-        // Enter Logic for new state
+        // --- Enter Logic ---
         if (newState == EnemyState.Chase)
         {
             agent.speed = chaseSpeed;
+            agent.updateRotation = false; 
         }
         else if (newState == EnemyState.Stalk)
         {
             agent.speed = stalkSpeed;
-            stalkTimer = stalkPathRecalculateDelay; // Force immediate path calculation on entry
+            stalkTimer = stalkPathRecalculateDelay; 
+            agent.updateRotation = false; 
         }
         else if (newState == EnemyState.Investigate)
         {
             agent.speed = investigateSpeed;
+            agent.updateRotation = false; 
         }
         else if (newState == EnemyState.Patrol)
         {
             agent.speed = patrolSpeed;
+            agent.updateRotation = false; 
         }
         else if (newState == EnemyState.Search)
         {
-            agent.speed = patrolSpeed; // Use slower speed for cautious approach
-            // Set destination to the single point
+            agent.speed = patrolSpeed; 
             NavMeshHit hit;
             if (NavMesh.SamplePosition(currentPatrolCenter, out hit, 1f, NavMesh.AllAreas))
                 agent.SetDestination(hit.position);
+            agent.updateRotation = false; 
+        }
+        else if (newState == EnemyState.Flee)
+        {
+            agent.speed = fleeSpeed; 
+            fleeTimer = fleeDuration;
+            SetFleeDestination(); 
+            agent.updateRotation = false; 
+        }
+        else if (newState == EnemyState.Retreat)
+        {
+            agent.speed = retreatSpeed; 
+            retreatTimer = 0f;
+            initialRetreatPosition = transform.position;
+            agent.isStopped = true; // Start in the stun phase
+            agent.updateRotation = false; // We handle rotation manually
+            retreatDestinationSet = false; // Initialize flag on enter
+            
+            // --- ANIMATION ENTER: Stop the Speed float from controlling this state ---
+            if (animator != null)
+            {
+                animator.SetFloat("Speed", 0f);
+            }
         }
         
         currentState = newState;

@@ -6,11 +6,8 @@ using TMPro;
 using UnityEditor;
 #endif // UNITY_EDITOR
 
-// NOTE: This file assumes the EnemyController script's EnemyState enum has been updated
-// to include Stalk, Investigate, Patrol, and Search.
-
 [RequireComponent(typeof(AwarenessSystem))]
-[RequireComponent(typeof(EnemyController))] // Ensure EnemyController is still required
+[RequireComponent(typeof(EnemyController))] 
 public class EnemyAI : MonoBehaviour
 {
     // === DEPENDENCIES ===
@@ -20,11 +17,11 @@ public class EnemyAI : MonoBehaviour
     [Header("Vision Setup")]
     private Transform playerTarget;
     [Tooltip("Layers that block the enemy's line of sight, e.g., Walls, Obstacles. Must be set for vision to work.")]
-    public LayerMask visionBlockerLayers = 1; // Default to layer 1 (Default)
+    public LayerMask visionBlockerLayers = 1; 
 
     // --- Detection Range Configuration (For Gizmos and Checks) ---
     [Header("Detection Ranges")]
-    [SerializeField] AnimationCurve _VisionSensitivity; // Exposed for AwarenessSystem
+    [SerializeField] AnimationCurve _VisionSensitivity; 
     [SerializeField] float _VisionConeAngle = 60f;
     [SerializeField] float _VisionConeRange = 30f;
     [SerializeField] Color _VisionConeColour = new Color(1f, 0f, 0f, 0.25f);
@@ -36,7 +33,7 @@ public class EnemyAI : MonoBehaviour
     [SerializeField] Color _ProximityRangeColour = new Color(1f, 1f, 1f, 0.25f);
     
     // --- Accessors for AwarenessSystem/Gizmos ---
-    public AnimationCurve VisionSensitivity => _VisionSensitivity; // New accessor for AwarenessSystem
+    public AnimationCurve VisionSensitivity => _VisionSensitivity; 
     public Vector3 EyeLocation => transform.position;
     public Vector3 EyeDirection => transform.forward;
     public float VisionConeAngle => _VisionConeAngle;
@@ -54,20 +51,21 @@ public class EnemyAI : MonoBehaviour
     {
         CosVisionConeAngle = Mathf.Cos(VisionConeAngle * Mathf.Deg2Rad);
         Awareness = GetComponent<AwarenessSystem>();
-        
-        // Initial state set in EnemyController
     }
     
     void Start()
     {
-        // Find the player once at the start. IMPORTANT: Ensure your player object is tagged "Player".
         GameObject playerGO = GameObject.FindWithTag("Player"); 
         if (playerGO != null)
         {
             playerTarget = playerGO.transform;
         }
         
-        // Ensure the enemy starts stalking/wandering immediately if not already doing so
+        if (motor != null && playerTarget != null)
+        {
+             motor.target = playerTarget;
+        }
+
         if (motor != null && motor.currentState == EnemyState.Stalk)
         {
             motor.StartStalk();
@@ -76,7 +74,6 @@ public class EnemyAI : MonoBehaviour
 
     void Update()
     {
-        // Continuous check for passive sight
         if (playerTarget != null)
         {
             CheckForSight();
@@ -91,9 +88,8 @@ public class EnemyAI : MonoBehaviour
             {
                 float currentAwareness = Awareness.GetAwarenessForTarget(playerTarget.gameObject); 
                 
-                if (currentAwareness > 0.05f) // Target is actively tracked
+                if (currentAwareness > 0.05f) 
                 {
-                    // Display the current state AND the awareness level
                     debugText = $"[{motor.currentState.ToString()}] | AWARENESS: {currentAwareness:F2}";
                 }
             }
@@ -107,10 +103,8 @@ public class EnemyAI : MonoBehaviour
     void CheckForSight()
     {
         DetectableTarget targetComponent = playerTarget.GetComponent<DetectableTarget>();
-        // We must have a DetectableTarget component on the player to report sight
         if (targetComponent == null) return; 
 
-        // Offset the eye position slightly upwards (assuming the pivot is at the feet)
         Vector3 eyePosition = EyeLocation + Vector3.up * 1f; 
         Vector3 targetPosition = playerTarget.position;
         
@@ -123,18 +117,14 @@ public class EnemyAI : MonoBehaviour
         {
             // 2. Line of Sight (LOS) Check using raycast
             RaycastHit hit;
-            
-            // Raycast check: Does anything block the view before the target?
             if (Physics.Raycast(eyePosition, targetDirection, out hit, distanceToTarget, visionBlockerLayers))
             {
-                // If the ray hits something, check if the hit distance is significantly shorter than the target distance.
                 if (hit.distance < distanceToTarget - 0.1f)
                 {
                     return; // Blocked by wall/obstacle
                 }
             } 
             
-            // If we pass all checks, the target is visible.
             ReportCanSee(targetComponent);
         }
     }
@@ -148,47 +138,58 @@ public class EnemyAI : MonoBehaviour
 
     public void OnDetected(GameObject targetGO, Vector3 lastSensedPosition)
     {
-        // FIX: Prevent state regression. If the AI is already chasing (Chase) or aggressively investigating,
-        // we ignore this lower-priority OnDetected command (which starts Search/Investigate).
-        if (motor.currentState == EnemyState.Chase || motor.currentState == EnemyState.Investigate)
+        if (motor.currentState == EnemyState.Chase || motor.currentState == EnemyState.Investigate || motor.currentState == EnemyState.Flee || motor.currentState == EnemyState.Retreat)
             return;
 
-        // Set the target for the motor (Chase state)
         if (motor.target == null || motor.target.gameObject != targetGO)
             motor.target = targetGO.transform;
 
-        // Start investigation, assuming the player is nearby
         motor.StartInvestigate(lastSensedPosition); 
     }
 
     public void OnFullyDetected(GameObject targetGO)
     {
-        // Set the target for the motor (Chase state)
-        if (motor.target == null || motor.target.gameObject != targetGO)
-            motor.target = targetGO.transform;
+        if (motor.currentState == EnemyState.Flee || motor.currentState == EnemyState.Retreat)
+            return;
             
         motor.StartChase();
     }
+    
+    public void OnPlayerShoots(Vector3 location)
+    {
+        motor.currentPatrolCenter = location;
+        motor.StartFlee(); 
+    }
+    
+    /// <summary>
+    /// Call this when the player successfully hits the enemy with a flashlight or similar light source.
+    /// The hit location is ignored by the Retreat state, which always backs away from the player's current position.
+    /// </summary>
+    public void OnFlashlightHit(Vector3 hitLocation)
+    {
+        // Don't interrupt Flee, but interrupt everything else
+        if (motor.currentState == EnemyState.Flee)
+            return;
+
+        // Note: The motor.currentPatrolCenter is not used by RetreatState, 
+        // as Retreat moves opposite the player, regardless of the hit location.
+        motor.StartRetreat();
+    }
+
 
     public void OnLostDetect(GameObject targetGO, Vector3 lastSensedPosition)
     {
-        // Stop chasing, start investigating the last known position.
         motor.StartInvestigate(lastSensedPosition); 
     }
 
     public void OnLostSuspicion(GameObject targetGO, Vector3 lastInvestigatedCenter)
     {
-        // Transition to the persistent Patrol state around the center of the last suspicion.
         motor.StartPatrol(lastInvestigatedCenter); 
     }
 
     public void OnFullyLost()
     {
-        // Clear the target reference from the motor
-        if (motor.target != null)
-            motor.target = null;
-            
-        motor.StartStalk(); // Changed from StartWander() to StartStalk()
+        motor.StartStalk(); 
     }
     
     // --- Report Handlers (Feeds Awareness System) ---

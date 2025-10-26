@@ -8,7 +8,6 @@ public class Gun : MonoBehaviour
 {
     public MainCharacterController playerController;
     
-    // ==================== Audio Settings ====================
     [Header("Audio Settings")]
     public AudioSource audioSource;
     public AudioClip shootSound;
@@ -128,12 +127,6 @@ public class Gun : MonoBehaviour
                 StartCoroutine(InsertSingleBullet());
             }
         }
-        
-        // // Input สำหรับการโต้ตอบ (กด E)
-        // if (Input.GetKeyDown(KeyCode.E))
-        // {
-        //     Interact();
-        // }
     }
 
     void Shoot()
@@ -188,10 +181,10 @@ public class Gun : MonoBehaviour
             didHit = true;
             Debug.Log("Hit: " + hit.collider.name);
             
-            Target target = hit.transform.GetComponent<Target>();
+            EnemyAI target = hit.transform.GetComponent<EnemyAI>();
             if (target != null)
             {
-                target.TakeDamage(damage); 
+                target.OnPlayerShoots(transform.position);
             }
         }
         else
@@ -244,41 +237,6 @@ public class Gun : MonoBehaviour
         
         Destroy(trail.gameObject, trail.time);
     }
-
-    // void Interact()
-    // {
-    //     Ray ray = new Ray(playerCamera.transform.position, playerCamera.transform.forward);
-    //     RaycastHit hit;
-    //     
-    //     if (Physics.Raycast(ray, out hit, interactRange, playerLayerMask))
-    //     {
-    //         // 1. ตรวจสอบ Dialogue Trigger (สำหรับ Dialog ปกติ)
-    //         DialogueTrigger dialogTrigger = hit.collider.GetComponent<DialogueTrigger>();
-    //         if (dialogTrigger != null)
-    //         {
-    //             if (dialogTrigger.TryInteract()) 
-    //             {
-    //                 return; 
-    //             }
-    //         }
-    //         
-    //         // 2. ตรวจสอบ AmmoPickup (สำหรับเก็บกระสุน)
-    //         AmmoPickup ammoPickup = hit.collider.GetComponent<AmmoPickup>();
-    //         if (ammoPickup != null)
-    //         {
-    //             // ammoPickup.Collect(this); 
-    //             return;
-    //         }
-    //         
-    //         // 3. ตรวจสอบ DoorController
-    //         DoorController door = hit.collider.GetComponent<DoorController>();
-    //         if (door != null)
-    //         {
-    //             door.Interact(gameObject);
-    //             return;
-    //         }
-    //     }
-    // }
 
     IEnumerator ReloadRoutine()
     {
