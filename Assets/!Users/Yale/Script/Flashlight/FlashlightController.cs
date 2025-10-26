@@ -3,7 +3,7 @@ using UnityEngine;
 public class FlashlightController : MonoBehaviour
 {
     public Light flashlight; 
-    private bool isFlashlightOn = true;
+    private bool isFlashlightOn = false;
 
     [Header("Normal Mode Settings")]
     public float normalIntensity = 2.0f;
