@@ -26,12 +26,14 @@ public class InteractionUI : MonoBehaviour
         }
     }
 
-    // เมธอดที่ Gun.cs เรียกเพื่อแสดงข้อความ
-    public void ShowPrompt(string actionText)
+    // 💡 แก้ไข: เพิ่ม bool includePrefix = true เพื่อรองรับการแสดงข้อความแบบไม่มี "Press E to"
+    // เมธอดที่ GunInteractionHandler และ HintTrigger เรียกเพื่อแสดงข้อความ
+    public void ShowPrompt(string actionText, bool includePrefix = true)
     {
         if (promptText == null) return;
         
-        string fullText = "Press E to " + actionText;
+        // 🚨 NEW: ถ้า includePrefix เป็น false จะใช้ actionText ตรงๆ
+        string fullText = includePrefix ? ("Press E to " + actionText) : actionText;
         
         // หยุด Coroutine เก่าก่อนเริ่มใหม่ (ถ้ามี)
         if (typingCoroutine != null)
@@ -40,7 +42,7 @@ public class InteractionUI : MonoBehaviour
         }
 
         promptText.gameObject.SetActive(true);
-        // 💡 NEW: เริ่ม Coroutine สำหรับพิมพ์ทีละตัว
+        // เริ่ม Coroutine สำหรับพิมพ์ทีละตัว
         typingCoroutine = StartCoroutine(TypeSentence(fullText));
     }
 
@@ -58,7 +60,7 @@ public class InteractionUI : MonoBehaviour
     }
     
     // ----------------------------------------------------
-    // 💡 NEW: Coroutine สำหรับ Typing Effect
+    // Coroutine สำหรับ Typing Effect
     // ----------------------------------------------------
     IEnumerator TypeSentence(string sentence)
     {
