@@ -338,10 +338,15 @@ public class Gun : MonoBehaviour
         // Destroy after 5s to clean up
         Destroy(ejected, 20f);
     }
-    
+
     public void AddReserveAmmo(int amount)
     {
         reserveAmmo += amount;
         Debug.Log("Picked up ammo. Reserve: " + reserveAmmo);
+    }
+    public string GetCurrentAmmoString()
+    {
+        // รูปแบบ "ปัจจุบัน / สำรอง"
+        return $"{currentAmmo} / {reserveAmmo}";
     }
 }
