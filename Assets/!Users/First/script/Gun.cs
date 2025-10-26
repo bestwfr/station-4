@@ -154,6 +154,7 @@ public class Gun : MonoBehaviour
         if (audioSource != null && shootSound != null)
         {
             audioSource.PlayOneShot(shootSound);
+            HearingManager.Instance.OnSoundEmitted(gameObject, transform.position,EHeardSoundCategory.Idk, 30f);
         }
 
         // Muzzle Flash
@@ -301,6 +302,7 @@ public class Gun : MonoBehaviour
         }
         
         audioSource.PlayOneShot(cockingSound);
+        HearingManager.Instance.OnSoundEmitted(gameObject, transform.position,EHeardSoundCategory.Idk, 7f);
         
         yield return new WaitForSeconds(.1f);
         

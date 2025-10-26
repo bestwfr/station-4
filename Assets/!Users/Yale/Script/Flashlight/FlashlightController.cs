@@ -55,6 +55,8 @@ public class FlashlightController : MonoBehaviour
     {
         if (isFlashlightOn)
         {
+            HearingManager.Instance.OnSoundEmitted(gameObject, transform.position,EHeardSoundCategory.Idk, 6f);
+            
             if (currentBattery <= 0)
             {
                 currentBattery = 0;

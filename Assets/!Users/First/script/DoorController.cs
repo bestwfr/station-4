@@ -101,6 +101,7 @@ public class DoorController : MonoBehaviour, IInteractable
             if (doorMeshCollider != null) doorMeshCollider.enabled = true;
             
             PlaySound(openSound);
+            HearingManager.Instance.OnSoundEmitted(gameObject, transform.position,EHeardSoundCategory.Idk, 16f);
         }
         else
         {
@@ -112,6 +113,8 @@ public class DoorController : MonoBehaviour, IInteractable
                 StartCoroutine(TemporarilyDisableCollider(timeToWaitBeforeColliderEnable));
             
             PlaySound(closeSound);
+            
+            HearingManager.Instance.OnSoundEmitted(gameObject, transform.position,EHeardSoundCategory.Idk, 16f);
         }
 
         Debug.Log("Door Toggled: " + (isOpen ? "Open" : "Closed"));

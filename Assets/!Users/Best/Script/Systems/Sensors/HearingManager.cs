@@ -5,7 +5,8 @@ using UnityEngine;
 public enum EHeardSoundCategory
 {
     EFootstep,
-    EJump
+    EJump,
+    Idk
 }
 
 public class HearingManager : MonoBehaviour
